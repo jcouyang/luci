@@ -24,7 +24,7 @@ trait DatabaseResource {
   def databaseResource(implicit ctx: ContextShift[cats.effect.IO])
     : Resource[IO, HikariTransactor[IO]] =
     for {
-      ce <- ExecutionContexts.fixedThreadPool[IO](32)
+      ce <- ExecutionContexts.fixedThreadPool[IO](THREAD_POOL)
       te <- ExecutionContexts.cachedThreadPool[IO]
       xa <- HikariTransactor.newHikariTransactor[IO](
         "org.postgresql.Driver",

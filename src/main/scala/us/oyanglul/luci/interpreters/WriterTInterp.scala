@@ -11,24 +11,24 @@ import monocle.Lens
 import org.log4s.{getLogger}
 import cats.data._
 
-trait ReaderWriterInterp {
+trait WriterTInterp {
   lazy val logger = getLogger
 
-  implicit def runReader[E[_]: Sync, C](
-      implicit L: Lens[C, FunctorTell[E, Chain[E[Unit]]]]) =
-    new Interpreter[E, effects.Writer, C] {
+  implicit def runReader[E[_]: Sync, C, A](
+      implicit LT: Lens[C, FunctorTell[E, Chain[E[Unit]]]]) =
+    new Interpreter[E, effects.WriterT, C] {
       def translate = {
-        Lambda[effects.Writer ~> Kleisli[E, C, ?]](
+        Lambda[effects.WriterT ~> Kleisli[E, C, ?]](
           _ match {
             case Info(log) =>
               ReaderT { pc =>
-                L.get(pc)
+                LT.get(pc)
                   .tell(Chain.one(Sync[E].pure(logger.info(log))))
               }
             case Debug(log) => logger.debug(log).pure[Kleisli[E, C, ?]]
             case Error(log) =>
               ReaderT(
-                L.get(_)
+                LT.get(_)
                   .tell(Chain.one(Sync[E].pure(logger.error(log)))))
           }
         )

@@ -1,6 +1,6 @@
 package us.oyanglul.luci
 
-import cats.data.{Chain, EitherK}
+import cats.data._
 import cats.effect.concurrent.Ref
 import cats.effect.{IO, Resource}
 import cats.free.Free
@@ -11,11 +11,11 @@ import resources._
 import interpreters._
 import org.http4s.client.Client
 import org.http4s.client.blaze.BlazeClientBuilder
-import org.http4s.dsl.io._
+import org.http4s.dsl.io.{Ok, _}
 import org.http4s._
 import org.specs2.mutable.Specification
 import org.http4s.implicits._
-
+import doobie.implicits._
 import scala.concurrent.ExecutionContext.Implicits.global
 import monocle.macros.GenLens
 import com.olegpy.meow.effects._
@@ -28,9 +28,7 @@ import scala.concurrent.ExecutionContext
 class LuciSpec
     extends Specification
     with DatabaseResource
-    with ReaderWriterInterp
-    with HttpClientInterp
-    with ProgramInterp {
+    with interpreters.All {
   implicit val cs = IO.contextShift(ExecutionContext.global)
   val httpClientResource = BlazeClientBuilder[IO](global).resource
   "Luci" >> {
@@ -38,10 +36,13 @@ class LuciSpec
 
     case class AppContext(transactor: Transactor[IO], http: Client[IO])
 
-    type WriterOrHttp[A] = EitherK[effects.Writer, effects.HttpClient[IO, ?], A]
-    type IoOrWriterOrHttp[A] = EitherK[IO, WriterOrHttp, A]
+    type Eff1[A] =
+      EitherK[effects.WriterT, effects.HttpClient[IO, ?], A]
+    type Eff2[A] =
+      EitherK[ReaderT[IO, ProgramContext, ?], Eff1, A]
+    type Eff3[A] = EitherK[IO, Eff2, A]
 
-    type Program[A] = EitherK[ConnectionOp, IoOrWriterOrHttp, A]
+    type Program[A] = EitherK[ConnectionOp, Eff3, A]
     type ProgramF[A] = Free[Program, A]
 
     case class Config(token: String)
@@ -52,14 +53,21 @@ class LuciSpec
     "And a Application".p.tab
     def createApp(implicit ctx: AppContext) = {
       val ping = freeRoute[IO, Program] {
-        case _ @GET -> Root => Free.liftInject[Program](Ok("live"))
+        case _ @GET -> Root =>
+          for {
+            config <- Free.liftInject[Program](Kleisli.ask[IO, ProgramContext])
+            _ <- Free.liftInject[Program](effects.Debug(s"heheh...$config"))
+            result <- sql"""select true""".query[Boolean].unique.inject[Program]
+            _ <- Free.liftInject[Program](IO(println(s"im IO...$result")))
+            res <- Free.liftInject[Program](Ok("live"))
+          } yield res
       }
       ping.map(runProgram)
     }
 
     def runProgram[A](program: ProgramF[A])(implicit
                                             ctx: AppContext) = {
-      programResource(Config("hehe").asRight[Throwable]).use {
+      programResource(Config("im config...").asRight[Throwable]).use {
         case (logEff, config) =>
           implicit val context =
             ProgramContext(logEff.tellInstance, config, ctx)
@@ -95,11 +103,15 @@ class LuciSpec
     databaseResource
       .use { tx =>
         httpClientResource.use { client =>
-          createApp(AppContext(tx, client)).orNotFound(req)
+          implicit val actx = AppContext(tx, client)
+          sql"select 42".query[Int].unique.transact(tx) *> IO(println("yey")) *>
+            IO(
+              createApp
+                .orNotFound(req)
+                .unsafeRunSync()
+                .status must_== Ok)
         }
-      }
-      .unsafeRunSync()
-      .status must_== Ok
+      } unsafeRunSync ()
 
   }
 

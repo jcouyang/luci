@@ -13,7 +13,23 @@ lazy val root = (project in file("."))
   .settings(
     organization := "us.oyanglul",
     name := "luci",
-    version := "0.0.1",
+    version := "0.0.1-SNAPSHOT",
+    scmInfo := Some(
+      ScmInfo(
+        url("https://github.com/jcouyang/owlet"),
+        "scm:git@github.com:jcouyang/owlet.git"
+      )
+    ),
+    developers := List(
+      Developer(
+        id    = "jcouyang",
+        name  = "Jichao Ouyang",
+        email = "oyanglulu@gmail.com",
+        url   = url("https://oyanglul.us")
+      )
+    ),
+    licenses := List("MIT" -> new URL("https://opensource.org/licenses/MIT")),
+    homepage := Some(url("https://github.com/jcouyang/luci")),
     libraryDependencies ++= Seq(
       "org.http4s"      %% "http4s-blaze-client" % Http4sVersion,
       "org.typelevel"   %% "cats-free"           % CatsVersion,
@@ -32,7 +48,15 @@ lazy val root = (project in file("."))
       "com.github.alexarchambault" %% "scalacheck-shapeless_1.14" % "1.2.0" % Test
     ),
     addCompilerPlugin("org.spire-math" %% "kind-projector"     % "0.9.6"),
-    addCompilerPlugin("com.olegpy"     %% "better-monadic-for" % "0.3.0-M4")
+    addCompilerPlugin("com.olegpy"     %% "better-monadic-for" % "0.3.0-M4"),
+    publishTo := {
+      val nexus = "https://oss.sonatype.org/"
+      if (isSnapshot.value)
+        Some("snapshots" at nexus + "content/repositories/snapshots")
+      else
+        Some("releases"  at nexus + "service/local/staging/deploy/maven2")
+    },
+    publishMavenStyle := true
   )
 
 scalafmtOnCompile in ThisBuild := true
