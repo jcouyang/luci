@@ -4,7 +4,7 @@ import cats.data._
 import cats.effect.concurrent.Ref
 import cats.effect.{IO, Resource}
 import cats.free.Free
-import cats.mtl.FunctorTell
+import cats.mtl.{FunctorTell, MonadState}
 import doobie.free.connection.{ConnectionIO}
 import doobie.util.log.LogHandler
 import doobie.util.transactor.Transactor
@@ -46,9 +46,11 @@ class LuciSpec
     type Program[A] = EitherK[ConnectionIO, Eff3, A]
     type ProgramF[A] = Free[Program, A]
 
+    case class ProgramState(someState: String)
     case class Config(token: String)
     case class ProgramContext(teller: FunctorTell[IO, Chain[IO[Unit]]],
                               config: Config,
+                              state: MonadState[IO, ProgramState],
                               appContext: AppContext)
 
     "And a Application".p.tab
@@ -72,10 +74,14 @@ class LuciSpec
 
     def runProgram[A](program: ProgramF[A])(implicit
                                             ctx: AppContext) = {
-      programResource(Config("im config...").asRight[Throwable]).use {
-        case (logEff, config) =>
+      programResource(Ref[IO].of(ProgramState("hehe")),
+                      Config("im config...").asRight[Throwable]).use {
+        case (logEff, config, state) =>
           implicit val context =
-            ProgramContext(logEff.tellInstance, config, ctx)
+            ProgramContext(logEff.tellInstance,
+                           config,
+                           state.stateInstance,
+                           ctx)
           implicit val lensHttpClient =
             GenLens[ProgramContext](_.appContext.http)
           implicit val lensTell = GenLens[ProgramContext](_.teller)
@@ -86,18 +92,20 @@ class LuciSpec
           binary.run(context)
       } unsafeRunSync ()
     }
-    def programResource[C](
-        validatedConfig: Either[Throwable, C]): Resource[IO, (RefLog, C)] = {
+    def programResource[S, C](stateRef: IO[Ref[IO, S]],
+                              validatedConfig: Either[Throwable, C])
+      : Resource[IO, (RefLog, C, Ref[IO, S])] = {
       Resource.make {
         for {
           logEff <- Ref.of[IO, Chain[IO[Unit]]](Chain.empty)
+          state <- stateRef
           config <- validatedConfig match {
             case Right(config) => IO(config)
             case Left(error)   => IO.raiseError(error)
           }
-        } yield (logEff, config)
+        } yield (logEff, config, state)
       } {
-        case (logEff, _) =>
+        case (logEff, _, _) =>
           logEff.get.flatMap(_.toList.sequence_)
       }
     }
