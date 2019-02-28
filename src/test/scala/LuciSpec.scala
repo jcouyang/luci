@@ -5,7 +5,8 @@ import cats.effect.concurrent.Ref
 import cats.effect.{IO, Resource}
 import cats.free.Free
 import cats.mtl.FunctorTell
-import doobie.free.connection.ConnectionOp
+import doobie.free.connection.{ConnectionIO}
+import doobie.util.log.LogHandler
 import doobie.util.transactor.Transactor
 import resources._
 import interpreters._
@@ -42,7 +43,7 @@ class LuciSpec
       EitherK[ReaderT[IO, ProgramContext, ?], Eff1, A]
     type Eff3[A] = EitherK[IO, Eff2, A]
 
-    type Program[A] = EitherK[ConnectionOp, Eff3, A]
+    type Program[A] = EitherK[ConnectionIO, Eff3, A]
     type ProgramF[A] = Free[Program, A]
 
     case class Config(token: String)
@@ -54,11 +55,15 @@ class LuciSpec
     def createApp(implicit ctx: AppContext) = {
       val ping = freeRoute[IO, Program] {
         case _ @GET -> Root =>
+          implicit val han = LogHandler.jdkLogHandler
           for {
             config <- Free.liftInject[Program](Kleisli.ask[IO, ProgramContext])
             _ <- Free.liftInject[Program](effects.Debug(s"heheh...$config"))
-            result <- sql"""select true""".query[Boolean].unique.inject[Program]
-            _ <- Free.liftInject[Program](IO(println(s"im IO...$result")))
+            _ <- Free.liftInject[Program](for {
+              _ <- sql"""insert into test values (4)""".update.run
+              // _ <- sql"""insert into test values ('aaa1')""".update.run
+            } yield ())
+            _ <- Free.liftInject[Program](IO(println(s"im IO...")))
             res <- Free.liftInject[Program](Ok("live"))
           } yield res
       }
@@ -74,11 +79,8 @@ class LuciSpec
           implicit val lensHttpClient =
             GenLens[ProgramContext](_.appContext.http)
           implicit val lensTell = GenLens[ProgramContext](_.teller)
-
-          implicit val lesnTransaction =
+          implicit val lensTransactor =
             GenLens[ProgramContext](_.appContext.transactor)
-
-          implicit val tx: Transactor[IO] = lesnTransaction.get(context)
           val binary = program foldMap implicitly[
             Interpreter[IO, Program, ProgramContext]].translate
           binary.run(context)
@@ -106,11 +108,11 @@ class LuciSpec
       .use { tx =>
         httpClientResource.use { client =>
           implicit val actx = AppContext(tx, client)
-            IO(
-              createApp
-                .orNotFound(req)
-                .unsafeRunSync()
-                .status must_== Ok)
+          IO(
+            createApp
+              .orNotFound(req)
+              .unsafeRunSync()
+              .status must_== Ok)
         }
       } unsafeRunSync ()
 
