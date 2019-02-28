@@ -1,23 +1,25 @@
 package us.oyanglul.luci.interpreters
+import cats.Monad
 import cats.data.Kleisli
-import cats.{MonadError, ~>}
+import cats.{~>}
 import doobie.free.connection.ConnectionOp
 import doobie.util.transactor.Transactor
+import java.sql.Connection
 import monocle.Lens
+import cats.syntax.flatMap._
 
 trait DoobieInterp {
 
-  implicit def dbInterp[E[_], C](implicit L: Lens[C, Transactor[E]],
-                                 ev: MonadError[E, Throwable]) =
+  implicit def dbInterp[E[_]: Monad, C](implicit L: Lens[C, Transactor[E]],
+                                        tx: Transactor[E]) =
     new Interpreter[E, ConnectionOp, C] {
-      def translate = Lambda[ConnectionOp ~> Kleisli[E, C, ?]] { op =>
-        Kleisli { ctx =>
-          val tx = L.get(ctx)
-          println(tx)
-          val bin = tx.interpret(op)
-          println(bin)
-          tx.exec.apply(bin)
-        }
-      }
+      val dbinterp: ConnectionOp ~> Kleisli[E, Connection, ?] = tx.interpret
+      def translate =
+        dbinterp andThen Lambda[Kleisli[E, Connection, ?] ~> Kleisli[E, C, ?]](
+          dbBin =>
+            Kleisli { c =>
+              val tx = L.get(c)
+              tx.connect(tx.kernel).flatMap(dbBin.apply(_))
+          })
     }
 }

@@ -74,9 +74,11 @@ class LuciSpec
           implicit val lensHttpClient =
             GenLens[ProgramContext](_.appContext.http)
           implicit val lensTell = GenLens[ProgramContext](_.teller)
-          implicit val lensDbTx =
+
+          implicit val lesnTransaction =
             GenLens[ProgramContext](_.appContext.transactor)
 
+          implicit val tx: Transactor[IO] = lesnTransaction.get(context)
           val binary = program foldMap implicitly[
             Interpreter[IO, Program, ProgramContext]].translate
           binary.run(context)
@@ -104,7 +106,6 @@ class LuciSpec
       .use { tx =>
         httpClientResource.use { client =>
           implicit val actx = AppContext(tx, client)
-          sql"select 42".query[Int].unique.transact(tx) *> IO(println("yey")) *>
             IO(
               createApp
                 .orNotFound(req)
