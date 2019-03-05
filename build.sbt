@@ -13,7 +13,7 @@ lazy val root = (project in file("."))
   .settings(
     organization := "us.oyanglul",
     name := "luci",
-    version := "0.0.1-SNAPSHOT",
+    version := "0.0.1",
     scmInfo := Some(
       ScmInfo(
         url("https://github.com/jcouyang/owlet"),
