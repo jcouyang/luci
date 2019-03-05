@@ -19,7 +19,6 @@ import org.http4s.implicits._
 import doobie.implicits._
 import scala.concurrent.ExecutionContext.Implicits.global
 import com.olegpy.meow.effects._
-import cats.instances.all._
 import cats.syntax.all._
 import org.http4s.client.dsl.io._
 
@@ -38,7 +37,7 @@ class LuciSpec
     case class AppContext(transactor: Transactor[IO], http: Client[IO])
 
     type Eff1[A] =
-      EitherK[effects.WriterT, effects.HttpClient[IO, ?], A]
+      EitherK[WriterT[IO, Chain[String], ?], effects.HttpClient[IO, ?], A]
     type Eff2[A] =
       EitherK[ReaderT[IO, Config, ?], Eff1, A]
     type Eff3[A] = EitherK[IO, Eff2, A]
@@ -54,7 +53,7 @@ class LuciSpec
       val token: String
     }
     trait ProgramContext
-        extends WriterTTeller[IO]
+        extends WriterTEnv[IO, Chain[String]]
         with HttpClientEnv[IO]
         with DoobieTransactor[IO]
         with Config
@@ -66,7 +65,8 @@ class LuciSpec
           implicit val han = LogHandler.jdkLogHandler
           for {
             config <- Free.liftInject[Program](Kleisli.ask[IO, Config])
-            _ <- Free.liftInject[Program](effects.Info(s"heheh...$config"))
+            _ <- Free.liftInject[Program](
+              WriterT.tell[IO, Chain[String]](Chain.one("hehe.." + config)))
             _ <- Free.liftInject[Program](for {
               _ <- sql"""insert into test values (4)""".update.run
               // _ <- sql"""insert into test values ('aaa1')""".update.run
@@ -87,7 +87,7 @@ class LuciSpec
           val binary = program foldMap implicitly[Program ~> ProgramBin]
           binary.run(new ProgramContext {
             val token = "hehe"
-            val teller = logEff.tellInstance
+            val writerT = logEff.tellInstance
             val client = ctx.http
             val transactor = ctx.transactor
           })
@@ -95,10 +95,10 @@ class LuciSpec
     }
     def programResource[S, C](stateRef: IO[Ref[IO, S]],
                               validatedConfig: Either[Throwable, C])
-      : Resource[IO, (RefLog, C, Ref[IO, S])] = {
+      : Resource[IO, (Ref[IO, Chain[String]], C, Ref[IO, S])] = {
       Resource.make {
         for {
-          logEff <- Ref.of[IO, Chain[IO[Unit]]](Chain.empty)
+          logEff <- Ref.of[IO, Chain[String]](Chain.empty)
           state <- stateRef
           config <- validatedConfig match {
             case Right(config) => IO(config)
@@ -107,7 +107,7 @@ class LuciSpec
         } yield (logEff, config, state)
       } {
         case (logEff, _, _) =>
-          logEff.get.flatMap(_.toList.sequence_)
+          logEff.get.flatMap(log => IO(println(log)))
       }
     }
 
