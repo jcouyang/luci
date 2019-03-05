@@ -1,15 +1,15 @@
 package us.oyanglul.luci
 
+import cats.~>
 import cats.data._
 import cats.effect.concurrent.Ref
 import cats.effect.{IO, Resource}
 import cats.free.Free
-import cats.mtl.{FunctorTell, MonadState}
 import doobie.free.connection.{ConnectionIO}
 import doobie.util.log.LogHandler
-import doobie.util.transactor.Transactor
+import doobie.util.transactor.{Transactor}
 import resources._
-import interpreters._
+
 import org.http4s.client.Client
 import org.http4s.client.blaze.BlazeClientBuilder
 import org.http4s.dsl.io.{Ok, _}
@@ -18,18 +18,18 @@ import org.specs2.mutable.Specification
 import org.http4s.implicits._
 import doobie.implicits._
 import scala.concurrent.ExecutionContext.Implicits.global
-import monocle.macros.GenLens
 import com.olegpy.meow.effects._
 import cats.instances.all._
 import cats.syntax.all._
 import org.http4s.client.dsl.io._
 
 import scala.concurrent.ExecutionContext
-
+import interpreters.all._
+import interpreters._
 class LuciSpec
     extends Specification
     with DatabaseResource
-    with interpreters.All {
+    with interpreters.ProgramInterp {
   implicit val cs = IO.contextShift(ExecutionContext.global)
   val httpClientResource = BlazeClientBuilder[IO](global).resource
   "Luci" >> {
@@ -40,18 +40,24 @@ class LuciSpec
     type Eff1[A] =
       EitherK[effects.WriterT, effects.HttpClient[IO, ?], A]
     type Eff2[A] =
-      EitherK[ReaderT[IO, ProgramContext, ?], Eff1, A]
+      EitherK[ReaderT[IO, Config, ?], Eff1, A]
     type Eff3[A] = EitherK[IO, Eff2, A]
 
     type Program[A] = EitherK[ConnectionIO, Eff3, A]
     type ProgramF[A] = Free[Program, A]
 
+    type ProgramBin[A] = Kleisli[IO, ProgramContext, A]
+
     case class ProgramState(someState: String)
-    case class Config(token: String)
-    case class ProgramContext(teller: FunctorTell[IO, Chain[IO[Unit]]],
-                              config: Config,
-                              state: MonadState[IO, ProgramState],
-                              appContext: AppContext)
+
+    trait Config {
+      val token: String
+    }
+    trait ProgramContext
+        extends WriterTTeller[IO]
+        with HttpClientEnv[IO]
+        with DoobieTransactor[IO]
+        with Config
 
     "And a Application".p.tab
     def createApp(implicit ctx: AppContext) = {
@@ -59,8 +65,8 @@ class LuciSpec
         case _ @GET -> Root =>
           implicit val han = LogHandler.jdkLogHandler
           for {
-            config <- Free.liftInject[Program](Kleisli.ask[IO, ProgramContext])
-            _ <- Free.liftInject[Program](effects.Debug(s"heheh...$config"))
+            config <- Free.liftInject[Program](Kleisli.ask[IO, Config])
+            _ <- Free.liftInject[Program](effects.Info(s"heheh...$config"))
             _ <- Free.liftInject[Program](for {
               _ <- sql"""insert into test values (4)""".update.run
               // _ <- sql"""insert into test values ('aaa1')""".update.run
@@ -74,22 +80,17 @@ class LuciSpec
 
     def runProgram[A](program: ProgramF[A])(implicit
                                             ctx: AppContext) = {
-      programResource(Ref[IO].of(ProgramState("hehe")),
-                      Config("im config...").asRight[Throwable]).use {
-        case (logEff, config, state) =>
-          implicit val context =
-            ProgramContext(logEff.tellInstance,
-                           config,
-                           state.stateInstance,
-                           ctx)
-          implicit val lensHttpClient =
-            GenLens[ProgramContext](_.appContext.http)
-          implicit val lensTell = GenLens[ProgramContext](_.teller)
-          implicit val lensTransactor =
-            GenLens[ProgramContext](_.appContext.transactor)
-          val binary = program foldMap implicitly[
-            Interpreter[IO, Program, ProgramContext]].translate
-          binary.run(context)
+      programResource(Ref[IO].of(ProgramState("hehe")), new Config {
+        val token = "im config..."
+      }.asRight[Throwable]).use {
+        case (logEff, _, _) =>
+          val binary = program foldMap implicitly[Program ~> ProgramBin]
+          binary.run(new ProgramContext {
+            val token = "hehe"
+            val teller = logEff.tellInstance
+            val client = ctx.http
+            val transactor = ctx.transactor
+          })
       } unsafeRunSync ()
     }
     def programResource[S, C](stateRef: IO[Ref[IO, S]],

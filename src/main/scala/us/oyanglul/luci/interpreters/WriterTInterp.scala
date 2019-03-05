@@ -6,32 +6,23 @@ import cats.effect.Sync
 import cats.mtl.FunctorTell
 import effects._
 import cats.~>
-import cats.syntax.applicative._
-import monocle.Lens
 import org.log4s.{getLogger}
 import cats.data._
+
+trait WriterTTeller[E[_]] {
+  val teller: FunctorTell[E, Chain[E[Unit]]]
+}
 
 trait WriterTInterp {
   lazy val logger = getLogger
 
-  implicit def runReader[E[_]: Sync, C, A](
-      implicit LT: Lens[C, FunctorTell[E, Chain[E[Unit]]]]) =
-    new Interpreter[E, effects.WriterT, C] {
-      def translate = {
-        Lambda[effects.WriterT ~> Kleisli[E, C, ?]](
-          _ match {
-            case Info(log) =>
-              ReaderT { pc =>
-                LT.get(pc)
-                  .tell(Chain.one(Sync[E].pure(logger.info(log))))
-              }
-            case Debug(log) => logger.debug(log).pure[Kleisli[E, C, ?]]
-            case Error(log) =>
-              ReaderT(
-                LT.get(_)
-                  .tell(Chain.one(Sync[E].pure(logger.error(log)))))
-          }
-        )
+  implicit def writerInterp[E[_]: Sync, C, A] =
+    Lambda[effects.WriterT ~> Kleisli[E, WriterTTeller[E], ?]](
+      _ match {
+        case Info(log) =>
+          ReaderT { _.teller.tell(Chain.one(Sync[E].pure(logger.info(log)))) }
+        case Error(log) =>
+          ReaderT(_.teller.tell(Chain.one(Sync[E].pure(logger.error(log)))))
       }
-    }
+    )
 }
