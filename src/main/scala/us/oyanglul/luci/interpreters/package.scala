@@ -11,7 +11,7 @@ package object interpreters {
   object stateT extends StateTInterp
   object writerT extends WriterTInterp
   object readerT extends ReaderTInterp
-  object doobie extends DoobieInterp
+  object doobieDB extends DoobieInterp
   object io extends IoInterp
   object http4SClientInterp$ extends Http4sClientInterp
 }

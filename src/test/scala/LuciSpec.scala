@@ -56,7 +56,7 @@ class LuciSpec
         extends WriterTEnv[IO, Chain[String]]
         with StateTEnv[IO, Int]
         with HttpClientEnv[IO]
-        with DoobieTransactor[IO]
+        with DoobieEnv[IO]
         with Config
 
     "And a Application".p.tab
@@ -95,7 +95,7 @@ class LuciSpec
             val stateT = stateEff.stateInstance
             val writerT = logEff.tellInstance
             val http4sClient = ctx.http
-            val transactor = ctx.transactor
+            val doobieTransactor = ctx.transactor
           })
       } unsafeRunSync ()
     }
