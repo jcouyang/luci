@@ -2,7 +2,7 @@ package us.oyanglul.luci.interpreters
 
 trait All
     extends WriterTInterp
-    with HttpClientInterp
+    with Http4sClientInterp
     with ReaderTInterp
     with StateTInterp
     with IoInterp

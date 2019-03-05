@@ -6,18 +6,18 @@ import cats._
 import org.http4s.client.{Client}
 
 trait HttpClientEnv[E[_]] {
-  val client: Client[E]
+  val http4sClient: Client[E]
 }
-trait HttpClientInterp {
-  implicit def runHttp[E[_]] =
+trait Http4sClientInterp {
+  implicit def http4sClientInterp[E[_]] =
     new (HttpClient[E, ?] ~> Kleisli[E, HttpClientEnv[E], ?]) {
       def apply[A](a: HttpClient[E, A]) = {
         a match {
           case b @ Expect(request) =>
             implicit val d = b.decoder
-            Kleisli(_.client.expect[A](request))
+            Kleisli(_.http4sClient.expect[A](request))
           case c: GetStatus[E] =>
-            Kleisli(_.client.status(c.req))
+            Kleisli(_.http4sClient.status(c.req))
         }
       }
     }

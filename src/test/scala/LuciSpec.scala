@@ -94,7 +94,7 @@ class LuciSpec
             val token = "hehe"
             val stateT = stateEff.stateInstance
             val writerT = logEff.tellInstance
-            val client = ctx.http
+            val http4sClient = ctx.http
             val transactor = ctx.transactor
           })
       } unsafeRunSync ()

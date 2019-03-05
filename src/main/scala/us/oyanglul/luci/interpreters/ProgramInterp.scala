@@ -6,7 +6,7 @@ import scala.util.Properties._
 import cats.data.{EitherK, Kleisli}
 
 trait ProgramInterp extends LowPriorityImplicits {
-  implicit def eitherKEmbedded[E[_], F[_], G[_], H[_], A, B](
+  implicit def highPriorityInterp[E[_], F[_], G[_], H[_], A, B](
       implicit foldl: F ~> Kleisli[E, A, ?],
       foldr: EitherK[G, H, ?] ~> Kleisli[E, B, ?],
       ev1: B <:< A
@@ -25,7 +25,7 @@ trait ProgramInterp extends LowPriorityImplicits {
 }
 
 trait LowPriorityImplicits {
-  implicit def programInterpreter[E[_], F[_], G[_], A, B, C](
+  implicit def lowPriorityInter[E[_], F[_], G[_], A, B, C](
       implicit foldl: F ~> Kleisli[E, A, ?],
       foldr: G ~> Kleisli[E, B, ?],
       ev1: C <:< A,

@@ -13,5 +13,5 @@ package object interpreters {
   object readerT extends ReaderTInterp
   object doobie extends DoobieInterp
   object io extends IoInterp
-  object http4sClient extends HttpClientInterp
+  object http4SClientInterp$ extends Http4sClientInterp
 }
