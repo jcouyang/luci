@@ -6,7 +6,7 @@ import cats.effect.concurrent.Ref
 import cats.effect.{IO, Resource}
 import cats.free.Free
 import doobie.free.connection.{ConnectionIO}
-import doobie.util.log.LogHandler
+// import doobie.util.log.LogHandler
 import doobie.util.transactor.{Transactor}
 import resources._
 
@@ -16,7 +16,7 @@ import org.http4s.dsl.io.{Ok, _}
 import org.http4s._
 import org.specs2.mutable.Specification
 import org.http4s.implicits._
-import doobie.implicits._
+// import doobie.implicits._
 import scala.concurrent.ExecutionContext.Implicits.global
 import com.olegpy.meow.effects._
 import cats.syntax.all._
@@ -62,15 +62,16 @@ class LuciSpec
     def createApp(implicit ctx: AppContext) = {
       val ping = freeRoute[IO, Program] {
         case _ @GET -> Root =>
-          implicit val han = LogHandler.jdkLogHandler
+          // implicit val han = LogHandler.jdkLogHandler
           for {
             config <- Free.liftInject[Program](Kleisli.ask[IO, Config])
             _ <- Free.liftInject[Program](
-              WriterT.tell[IO, Chain[String]](Chain.one("hehe.." + config)))
-            _ <- Free.liftInject[Program](for {
-              _ <- sql"""insert into test values (4)""".update.run
-              // _ <- sql"""insert into test values ('aaa1')""".update.run
-            } yield ())
+              WriterT.tell[IO, Chain[String]](
+                Chain.one("config: " + config.token)))
+            // _ <- Free.liftInject[Program](for {
+            // _ <- sql"""insert into test values (4)""".update.run
+            // _ <- sql"""insert into test values ('aaa1')""".update.run
+            // } yield ())
             _ <- Free.liftInject[Program](IO(println(s"im IO...")))
             res <- Free.liftInject[Program](Ok("live"))
           } yield res

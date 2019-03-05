@@ -8,6 +8,7 @@ import cats.kernel.Semigroup
 import cats.mtl.FunctorTell
 import cats.~>
 import cats.data._
+import cats.syntax.apply._
 
 trait WriterTEnv[E[_], F] {
   val writerT: FunctorTell[E, F]
@@ -19,8 +20,8 @@ trait WriterTInterp {
       ReaderT(env => {
         writer.run.flatMap {
           case (l, v) =>
-            env.writerT.tell(l)
-            Monad[E].pure(v)
+            env.writerT.tell(l) *>
+              Monad[E].pure(v)
         }
       }))
 }
