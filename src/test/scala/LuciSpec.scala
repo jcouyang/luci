@@ -37,7 +37,7 @@ class LuciSpec
     case class AppContext(transactor: Transactor[IO], http: Client[IO])
 
     type Eff1[A] =
-      EitherK[WriterT[IO, Chain[String], ?], effects.HttpClient[IO, ?], A]
+      EitherK[WriterT[IO, Chain[String], ?], effects.Http4sClient[IO, ?], A]
     type Eff2[A] =
       EitherK[ReaderT[IO, Config, ?], Eff1, A]
     type Eff3[A] = EitherK[IO, Eff2, A]

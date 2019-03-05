@@ -10,8 +10,8 @@ trait HttpClientEnv[E[_]] {
 }
 trait Http4sClientInterp {
   implicit def http4sClientInterp[E[_]] =
-    new (HttpClient[E, ?] ~> Kleisli[E, HttpClientEnv[E], ?]) {
-      def apply[A](a: HttpClient[E, A]) = {
+    new (Http4sClient[E, ?] ~> Kleisli[E, HttpClientEnv[E], ?]) {
+      def apply[A](a: Http4sClient[E, A]) = {
         a match {
           case b @ Expect(request) =>
             implicit val d = b.decoder
