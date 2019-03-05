@@ -41,8 +41,8 @@ class LuciSpec
     type Eff2[A] =
       EitherK[ReaderT[IO, Config, ?], Eff1, A]
     type Eff3[A] = EitherK[IO, Eff2, A]
-
-    type Program[A] = EitherK[ConnectionIO, Eff3, A]
+    type Eff4[A] = EitherK[StateT[IO, Int, ?], Eff3, A]
+    type Program[A] = EitherK[ConnectionIO, Eff4, A]
     type ProgramF[A] = Free[Program, A]
 
     type ProgramBin[A] = Kleisli[IO, ProgramContext, A]
@@ -54,6 +54,7 @@ class LuciSpec
     }
     trait ProgramContext
         extends WriterTEnv[IO, Chain[String]]
+        with StateTEnv[IO, Int]
         with HttpClientEnv[IO]
         with DoobieTransactor[IO]
         with Config
@@ -65,6 +66,8 @@ class LuciSpec
           // implicit val han = LogHandler.jdkLogHandler
           for {
             config <- Free.liftInject[Program](Kleisli.ask[IO, Config])
+            state1 <- Free.liftInject[Program](StateT.get[IO, Int])
+            _ <- Free.liftInject[Program](StateT.modify[IO, Int](1 + _))
             _ <- Free.liftInject[Program](
               WriterT.tell[IO, Chain[String]](
                 Chain.one("config: " + config.token)))
@@ -72,7 +75,8 @@ class LuciSpec
             // _ <- sql"""insert into test values (4)""".update.run
             // _ <- sql"""insert into test values ('aaa1')""".update.run
             // } yield ())
-            _ <- Free.liftInject[Program](IO(println(s"im IO...")))
+            _ <- Free.liftInject[Program](
+              IO(println(s"im IO...state: $state1")))
             res <- Free.liftInject[Program](Ok("live"))
           } yield res
       }
@@ -81,13 +85,14 @@ class LuciSpec
 
     def runProgram[A](program: ProgramF[A])(implicit
                                             ctx: AppContext) = {
-      programResource(Ref[IO].of(ProgramState("hehe")), new Config {
+      programResource(Ref[IO].of(1), new Config {
         val token = "im config..."
       }.asRight[Throwable]).use {
-        case (logEff, _, _) =>
+        case (logEff, _, stateEff) =>
           val binary = program foldMap implicitly[Program ~> ProgramBin]
           binary.run(new ProgramContext {
             val token = "hehe"
+            val stateT = stateEff.stateInstance
             val writerT = logEff.tellInstance
             val client = ctx.http
             val transactor = ctx.transactor
@@ -107,8 +112,9 @@ class LuciSpec
           }
         } yield (logEff, config, state)
       } {
-        case (logEff, _, _) =>
-          logEff.get.flatMap(log => IO(println(log)))
+        case (logEff, _, state) =>
+          logEff.get.flatMap(log => IO(println(log))) *> state.get.flatMap(
+            log => IO(println(log)))
       }
     }
 

@@ -4,9 +4,14 @@ import cats.data.Kleisli
 import cats.~>
 
 package object interpreters {
-  // This is kind of eh … we need to interpret F into Kleisli so this is helpful
   implicit class NaturalTransformationOps[F[_], G[_]](nat: F ~> G) {
     def liftK[E] = Lambda[F ~> Kleisli[G, E, ?]](fa => Kleisli(_ => nat(fa)))
   }
   object all extends All
+  object stateT extends StateTInterp
+  object writerT extends WriterTInterp
+  object readerT extends ReaderTInterp
+  object doobie extends DoobieInterp
+  object io extends IoInterp
+  object http4sClient extends HttpClientInterp
 }
