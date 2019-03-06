@@ -1,19 +1,26 @@
 package us.oyanglul
 
-import cats.effect.concurrent.Ref
-import cats.data._
-import cats.effect.IO
-import cats.free._
-import cats.data.{Kleisli, OptionT}
-import org.http4s.{Request, Response}
-import cats._
+import cats.data.{ EitherK }
+
 
 package object luci {
-  type FreeRoute[F[_], G[_]] =
-    Kleisli[OptionT[F, ?], Request[F], Free[G, Response[F]]]
-  def freeRoute[F[_]: Monad, G[_]](
-      pf: PartialFunction[Request[F], Free[G, Response[F]]]): FreeRoute[F, G] =
-    Kleisli(
-      (req: Request[F]) => OptionT(implicitly[Monad[F]].pure(pf.lift(req))))
-  type RefLog = Ref[IO, Chain[IO[Unit]]]
+  type EffCons[F[_], Eff[_],A] = EitherK[F, Eff, A]
+  type Eff2[F1[_], F2[_], A] = EitherK[F1, F2, A]
+  type Eff3[F1[_], F2[_], F3[_], A] =
+    EffCons[F1, Eff2[F2, F3, ?], A]
+  type Eff4[F1[_], F2[_], F3[_], F4[_], A] =
+    EffCons[F1, Eff3[F2, F3, F4, ?], A]
+  type Eff5[F1[_], F2[_], F3[_], F4[_], F5[_], A] =
+    EffCons[F1, Eff4[F2, F3, F4, F5, ?], A]
+  type Eff6[F1[_], F2[_], F3[_], F4[_], F5[_], F6[_], A] =
+    EffCons[F1, Eff5[F2, F3, F4, F5, F6,?], A]
+  type Eff7[F1[_], F2[_], F3[_], F4[_], F5[_], F6[_], F7[_], A] =
+    EffCons[F1, Eff6[F2, F3, F4, F5, F6, F7, ?], A]
+  type Eff8[F1[_], F2[_], F3[_], F4[_], F5[_], F6[_], F7[_], F8[_], A] =
+    EffCons[F1, Eff7[F2, F3, F4, F5, F6, F7, F8, ?], A]
+  type Eff9[F1[_], F2[_], F3[_], F4[_],F5[_], F6[_], F7[_], F8[_], F9[_], A] = EffCons[F1, Eff8[F2, F3, F4, F5, F6, F7, F8, F9, ?], A]
+  type Eff10[F1[_], F2[_], F3[_], F4[_],F5[_], F6[_], F7[_], F8[_], F9[_], F10[_], A] = EffCons[F1, Eff9[F2, F3, F4, F5, F6, F7, F8, F9,F10, ?], A]
+  type Eff11[F1[_], F2[_], F3[_], F4[_],F5[_], F6[_], F7[_], F8[_], F9[_], F10[_], F11[_], A] = EffCons[F1, Eff10[F2, F3, F4, F5, F6, F7, F8, F9, F10, F11,?], A]
+  type Eff12[F1[_], F2[_], F3[_], F4[_],F5[_], F6[_], F7[_], F8[_], F9[_], F10[_], F11[_], F12[_], A] = EffCons[F1, Eff11[F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12, ?], A]
+
 }

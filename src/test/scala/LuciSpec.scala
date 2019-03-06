@@ -1,6 +1,7 @@
 package us.oyanglul.luci
 
 import cats.~>
+import cats.Monad
 import cats.data._
 import cats.effect.concurrent.Ref
 import cats.effect.{IO, Resource}
@@ -30,6 +31,14 @@ class LuciSpec
     with DatabaseResource
     with interpreters.ProgramInterp {
   implicit val cs = IO.contextShift(ExecutionContext.global)
+  type FreeRoute[F[_], G[_]] =
+    Kleisli[OptionT[F, ?], Request[F], Free[G, Response[F]]]
+  def freeRoute[F[_]: Monad, G[_]](
+      pf: PartialFunction[Request[F], Free[G, Response[F]]]): FreeRoute[F, G] =
+    Kleisli(
+      (req: Request[F]) => OptionT(implicitly[Monad[F]].pure(pf.lift(req))))
+  type RefLog = Ref[IO, Chain[IO[Unit]]]
+
   val httpClientResource = BlazeClientBuilder[IO](global).resource
   "Luci" >> {
     "Given you have define all types for your program".p.tab
