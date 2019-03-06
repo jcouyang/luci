@@ -6,6 +6,13 @@ import scala.util.Properties._
 import cats.data.{EitherK, Kleisli}
 
 trait ProgramInterp extends LowPriorityImplicits {
+  implicit def genericInterp[F[_], E[_], R[_], B](
+      implicit
+      gen: Gen.Aux[F, R],
+      interp: CanInterp[R, E, B]): CanInterp[F, E, B] = {
+    ???
+  }
+
   implicit def highPriorityInterp[E[_], F[_], G[_], H[_], A, B](
       implicit foldl: F ~> Kleisli[E, A, ?],
       foldr: EitherK[G, H, ?] ~> Kleisli[E, B, ?],
