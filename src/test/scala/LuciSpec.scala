@@ -7,6 +7,7 @@ import cats.effect.concurrent.Ref
 import cats.effect.{IO, Resource}
 import cats.free.Free
 import doobie.free.connection.{ConnectionIO}
+import effects.Http4sClient
 // import doobie.util.log.LogHandler
 import doobie.util.transactor.{Transactor}
 import resources._
@@ -45,13 +46,15 @@ class LuciSpec
 
     case class AppContext(transactor: Transactor[IO], http: Client[IO])
 
-    type Eff1[A] =
-      EitherK[WriterT[IO, Chain[String], ?], effects.Http4sClient[IO, ?], A]
-    type Eff2[A] =
-      EitherK[ReaderT[IO, Config, ?], Eff1, A]
-    type Eff3[A] = EitherK[IO, Eff2, A]
-    type Eff4[A] = EitherK[StateT[IO, Int, ?], Eff3, A]
-    type Program[A] = EitherK[ConnectionIO, Eff4, A]
+    type Program[A] = Eff6[
+      Http4sClient[IO, ?],
+      WriterT[IO, Chain[String], ?],
+      ReaderT[IO, Config, ?],
+      IO,
+      ConnectionIO,
+      StateT[IO, Int, ?],
+      A
+    ]
     type ProgramF[A] = Free[Program, A]
 
     type ProgramBin[A] = Kleisli[IO, ProgramContext, A]
