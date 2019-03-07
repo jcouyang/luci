@@ -12,11 +12,11 @@ lazy val root = (project in file("."))
   .settings(
     organization := "us.oyanglul",
     name := "luci",
-    version := "0.1.0",
+    version := "0.1.2",
     scmInfo := Some(
       ScmInfo(
-        url("https://github.com/jcouyang/owlet"),
-        "scm:git@github.com:jcouyang/owlet.git"
+        url("https://github.com/jcouyang/luci"),
+        "scm:git@github.com:jcouyang/luci.git"
       )
     ),
     developers := List(
