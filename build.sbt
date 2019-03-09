@@ -12,7 +12,8 @@ lazy val root = (project in file("."))
   .settings(
     organization := "us.oyanglul",
     name := "luci",
-    version := "0.1.2",
+    version := "0.2.0",
+    // scalacOptions += "-Xlog-implicits",
     scmInfo := Some(
       ScmInfo(
         url("https://github.com/jcouyang/luci"),
