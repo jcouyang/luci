@@ -1,36 +1,8 @@
 package us.oyanglul
 
-import cats.data.{EitherK, Kleisli}
-import shapeless._
-import cats.~>
+import cats.data.EitherK
 
 package object luci {
-  object Gen {
-    trait GenericK[F[_]] {
-      type Repr[A]
-      def to[A](t: F[A]): Repr[A]
-      def from[A](f: Repr[A]): F[A]
-    }
-
-    type Aux[F[_], R[_]] = GenericK[F] { type Repr[A] = R[A] }
-
-    implicit def genericEitherK[F1[_], F2[_]](implicit gen: GenericK[F2]) =
-      new GenericK[EitherK[F1, F2, ?]] {
-        type Repr[A] = F1[A] :+: gen.Repr[A] :+: CNil
-        def to[A](t: EitherK[F1, F2, A]): Repr[A] = t.run match {
-          case Left(a)  => Inl(a)
-          case Right(b) => Inr(Inl(gen.to(b)))
-        }
-
-        def from[A](r: Repr[A]): EitherK[F1, F2, A] = r match {
-          case Inl(a)      => EitherK.leftc(a)
-          case Inr(Inl(b)) => EitherK.rightc(gen.from(b))
-          case _           => ???
-        }
-      }
-  }
-
-  type CanInterp[F[_], E[_], A] = F ~> Kleisli[E, A, ?]
   type EffCons[F[_], Eff[_], A] = EitherK[F, Eff, A]
   type Eff2[F1[_], F2[_], A] = EitherK[F1, F2, A]
   type Eff3[F1[_], F2[_], F3[_], A] =

@@ -42,19 +42,50 @@ trait LowPriorityImplicits {
     }
 }
 
+trait DebugInterp {
+  @scala.annotation.implicitNotFound(
+    """
+Sorry, luci cannot find ${F} ~> Kleisli[${E}, ${A}, ?]
+Please make sure:
+1. You have implicit value of type `${F} ~> Kleisli[${E}, T, ?]` avaiable in context
+2. ${A} extends your T in `${F} ~> Kleisli[${E}, T, ?]`
+3. still won't compile? try `scalacOptions += "-Xlog-implicits"`
+""")
+  type CanInterp[F[_], E[_], A] = F ~> Kleisli[E, A, ?]
+
+  implicit def debugInterp[E[_], F[_], A, B](
+      implicit foldl: F ~> Kleisli[E, A, ?],
+      ev1: B <:< A
+  ): CanInterp[F, E, B] = ???
+}
+
+object debug extends DebugInterp
+
 private trait Test {
   import effects._
-  import interpreters.all._
   import doobie.free.connection.ConnectionIO
-  import interpreters.generic._
+  import cats.data._
+  import interpreters.all._
+  trait Config
 
-  type Program[A] = Eff3[
+  type Program[A] = Eff6[
     Http4sClient[IO, ?],
+    WriterT[IO, Chain[String], ?],
+    ReaderT[IO, Config, ?],
     IO,
     ConnectionIO,
+    StateT[IO, Int, ?],
     A
   ]
-  trait ProgramContext extends HttpClientEnv[IO] with DoobieEnv[IO]
 
-  implicitly[Program ~> Kleisli[IO, ProgramContext, ?]]
+  trait ProgramContext
+      extends WriterTEnv[IO, Chain[String]]
+      with StateTEnv[IO, Int]
+      with HttpClientEnv[IO]
+      with DoobieEnv[IO]
+      with Config
+
+  import debug._
+  implicitly[CanInterp[ConnectionIO, IO, ProgramContext]]
+  implicitly[CanInterp[Http4sClient[IO, ?], IO, ProgramContext]]
 }

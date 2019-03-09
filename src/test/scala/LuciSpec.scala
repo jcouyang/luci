@@ -26,11 +26,9 @@ import org.http4s.client.dsl.io._
 
 import scala.concurrent.ExecutionContext
 import interpreters.all._
+import interpreters.generic._
 import interpreters._
-class LuciSpec
-    extends Specification
-    with DatabaseResource
-    with interpreters.ProgramInterp {
+class LuciSpec extends Specification with DatabaseResource {
   implicit val cs = IO.contextShift(ExecutionContext.global)
   type FreeRoute[F[_], G[_]] =
     Kleisli[OptionT[F, ?], Request[F], Free[G, Response[F]]]
