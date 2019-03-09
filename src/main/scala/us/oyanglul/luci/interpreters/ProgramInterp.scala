@@ -2,17 +2,12 @@ package us.oyanglul.luci
 package interpreters
 
 import cats._
-import scala.util.Properties._
 import cats.data.{EitherK, Kleisli}
+import cats.effect.IO
 
-trait ProgramInterp extends LowPriorityImplicits {
-  implicit def genericInterp[F[_], E[_], R[_], B](
-      implicit
-      gen: Gen.Aux[F, R],
-      interp: CanInterp[R, E, B]): CanInterp[F, E, B] = {
-    ???
-  }
+object generic extends HighPriorityImplicits
 
+trait HighPriorityImplicits extends LowPriorityImplicits {
   implicit def highPriorityInterp[E[_], F[_], G[_], H[_], A, B](
       implicit foldl: F ~> Kleisli[E, A, ?],
       foldr: EitherK[G, H, ?] ~> Kleisli[E, B, ?],
@@ -25,10 +20,6 @@ trait ProgramInterp extends LowPriorityImplicits {
       })
       et.fold(convl, foldr)
     }
-
-  private[interpreters] def mandatoryEnv(name: String) =
-    envOrNone(name)
-      .toRight(List(s"Please specify env $name"))
 }
 
 trait LowPriorityImplicits {
@@ -49,4 +40,21 @@ trait LowPriorityImplicits {
       })
       et.fold(convl, convr)
     }
+}
+
+private trait Test {
+  import effects._
+  import interpreters.all._
+  import doobie.free.connection.ConnectionIO
+  import interpreters.generic._
+
+  type Program[A] = Eff3[
+    Http4sClient[IO, ?],
+    IO,
+    ConnectionIO,
+    A
+  ]
+  trait ProgramContext extends HttpClientEnv[IO] with DoobieEnv[IO]
+
+  implicitly[Program ~> Kleisli[IO, ProgramContext, ?]]
 }
