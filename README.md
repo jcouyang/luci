@@ -73,7 +73,7 @@ It's very similar but but just one more step
 
 e.g. our `Program` has lot of effects... WriterT, Http4sClient, ReaderT, IO, StateT and Doobie's ConnectionIO
 
-few of them need to be stateful across all over the program like WriterT, StateT and ReaderT
+few of them need to be stateful across all over the program like WriterT, StateT
 ```scala
 type Program[A] = Eff6[
       Http4sClient[IO, ?],
@@ -139,3 +139,36 @@ binary.run(new ProgramContext {
   val doobieTransactor = transactor
 })
 ```
+
+for stateful `WriterT` and `StateT` here, we can get `FunctorTell` and `MonadState` instances from `Ref[IO, ?]`
+and inject them into program via `ProgramContext`
+
+- `stateRef` is `Ref[IO, Int]`
+- `logRef` is `Ref[IO, Chain[String]]`
+
+## Implicit Debug
+the generic interpreter is very convinien that you don't have to write interperters like
+```scala
+val interpreter: Program ~> ProgramBin = writerTInterp or (stateTInterp or (http4sClientInterp or (ioInterp ...)))
+```
+
+you can simply just
+```scala
+import us.oyanglul.luci.interpreters.generic._
+implicitly[Program ~> ProgramBin]
+```
+
+However, the problem of letting compiler to implicitly find correct interpreter for you may sometimes fail and hard to debug
+
+in this case, you can use `us.oyanglul.luci.interpreters.debug`
+
+```scala
+import us.oyanglul.luci.interpreters.debug._
+
+implicitly[CanInterp[WriterT[IO, Chain[String], ?], IO, ProgramContext]]
+implicitly[CanInterp[ReaderT[IO, Config, ?], IO, ProgramContext]]
+implicitly[CanInterp[Http4sClient[IO, ?], IO, ProgramContext]]
+implicitly[CanInterp[ConnectionIO, IO, ProgramContext]]
+```
+
+to find out which effect's interpreter that the compiler has problem with
