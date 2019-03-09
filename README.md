@@ -22,10 +22,10 @@ type Program[A] = EitherK[IO, StateT[IO, Int, ?], A]
 type ProgramF[A] = Free[Program, A]
 
 def program : Program[Int] = for {
-	initState <- liftInject[Program](StateT.get[IO, Int])
+  initState <- liftInject[Program](StateT.get[IO, Int])
   _ <- liftInject[Program](IO(println(s"init state is $initState")))
   _ <- liftInject[Program](StateT.modify[IO, Int](_ + 1))
-	res <- liftInject[Program](StateT.modify[IO, Int](_ + 1))
+  res <- liftInject[Program](StateT.modify[IO, Int](_ + 1))
 } yield res
 ```
 
@@ -49,11 +49,14 @@ One of the option is to use [FreeT](https://typelevel.org/cats/datatypes/freemon
 But with FreeT:
 
 - you can only mixin 1 effect, what if I have multiple effects that I want them to be stateful across the whole program.
-- all other effects need to be lift to FreeT as well. It will have huge impact to our existing code base that is Free already.
+- all other effects need to be lift to FreeT as well. It might have huge impact to our existing code base that is Free already.
 
 ## The Ultimate Solution
 
-is using both [meow-mtl](https://github.com/oleg-py/meow-mtl) and ReaderT, then we can easily integrate mtl into Free Monad Effects
+is using both [meow-mtl](https://github.com/oleg-py/meow-mtl) and ReaderT/Kleisli, then we can easily integrate mtl into Free Monad Effects
+
+- interpreter will have type of `Program ~> Kleisli[IO, ProgramContext, ?]` instead of just `Program ~> IO`
+- stateful effects can be injected into program when actually running `Kleisli[IO, ProgramContext, ?]`
 
 ### we have some Effects out of the box
 - WriterT
@@ -64,10 +67,12 @@ is using both [meow-mtl](https://github.com/oleg-py/meow-mtl) and ReaderT, then 
 - Doobie ConnectionIO
 - IO
 
-It's very similar but but just one more step
-1. create dsl
-2. compile it with interpreter
-3. run it in a context
+It's very similar but just one more step to run the kleisli
+
+1. create Program dsl
+2. compile Program into a Kleisli
+3. run Kleisli in a context
+
 
 ### Step 1: Create DSL
 
@@ -112,11 +117,11 @@ val program = for {
 if we compile our program, we should get a binary `ProgramBin`
 ```scala
 trait ProgramContext
-        extends WriterTEnv[IO, Chain[String]]
-        with StateTEnv[IO, Int]
-        with HttpClientEnv[IO]
-        with DoobieEnv[IO]
-        with ProgramEnv
+	extends WriterTEnv[IO, Chain[String]]
+	with StateTEnv[IO, Int]
+	with HttpClientEnv[IO]
+	with DoobieEnv[IO]
+	with ProgramEnv
 
 import us.oyanglul.interpreters.all._ // import all our predefined effect interpreters
 import us.oyanglul.interpreters.generic._ // so we can infer the correct interpreters to use base on your `Program` type
