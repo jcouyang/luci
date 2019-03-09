@@ -53,9 +53,9 @@ But with FreeT:
 
 ## The Ultimate Solution
 
-is using [meow-mtl](https://github.com/oleg-py/meow-mtl) and ReaderT, we can easily integrate mtl into Free Monad Effects
+is using both [meow-mtl](https://github.com/oleg-py/meow-mtl) and ReaderT, then we can easily integrate mtl into Free Monad Effects
 
-## we have some Effects out of the box
+### we have some Effects out of the box
 - WriterT
 - ReaderT/Kleisli
 - StateT
@@ -64,8 +64,12 @@ is using [meow-mtl](https://github.com/oleg-py/meow-mtl) and ReaderT, we can eas
 - Doobie ConnectionIO
 - IO
 
-It's the similar proccess to using the effects
-## Step 1: Define your `Program`'s effects
+It's very similar but but just one more step
+1. create dsl
+2. compile it with interpreter
+3. run it in a context
+
+### Step 1: Create DSL
 
 e.g. our `Program` has lot of effects... WriterT, Http4sClient, ReaderT, IO, StateT and Doobie's ConnectionIO
 
@@ -104,7 +108,7 @@ val program = for {
   } yield res
 ```
 
-## Step 2: Compile the Program
+### Step 2: Compile the Program
 if we compile our program, we should get a binary `ProgramBin`
 ```scala
 trait ProgramContext
@@ -114,7 +118,8 @@ trait ProgramContext
         with DoobieEnv[IO]
         with ProgramEnv
 
-import us.oyanglul.interpreters.generic._
+import us.oyanglul.interpreters.all._ // import all our predefined effect interpreters
+import us.oyanglul.interpreters.generic._ // so we can infer the correct interpreters to use base on your `Program` type
 type ProgramBin[A] = Kleisli[IO, ProgramContext, A]
 val binary = program foldMap implicitly[Program ~> ProgramBin]
 ```
@@ -122,9 +127,7 @@ imagine that you have a binary of command line tool, when you run it you would p
 
 same here, if you want to run `ProgramBin`, which is basically just a Kleisli, we need to provide args with is `ProgramContext`
 
-`import us.oyanglul.interpreters.generic._` so we can infer the correct interpreters to use base on your `Program` type
-
-## Step 3: Run Program
+### Step 3: Run Program
 
 run the program with real `--args`
 ```scala
@@ -136,5 +139,3 @@ binary.run(new ProgramContext {
   val doobieTransactor = transactor
 })
 ```
-
-- [Scala Doc](https://index.scala-lang.org/jcouyang/luci/luci)
