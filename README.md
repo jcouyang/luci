@@ -14,7 +14,7 @@ libraryDependencies += "us.oyanglul" %% "luci" % <version>"
 ## The Problem
 When you want to mix in some native effects into your Free Monad DSL, some effects won't work
 
-for instance we have two effects IO and StateT, and we would like to do some math using StateT
+for instance, we have two effects IO and StateT, and we would like to do some math using StateT
 
 Here is the Program
 ```scala
@@ -42,14 +42,14 @@ program foldMap (ioInterp or stateTInterp(0))
 
 Guess what, it doesn't work, the result will be 1 not 2
 
-because we run the state for each effect seperately in the stateTInterp
+because we run the state for each effect separately in the stateTInterp
 
 One of the option is to use [FreeT](https://typelevel.org/cats/datatypes/freemonad.html#freet)
 
 But with FreeT:
 
-- you can only mixin on effect, what if I have multiple effects that I want them to be effectful across the whole program.
-- all other effects need to be lift to FreeT as well. this will have huge impact to our existing code base that is Free already.
+- you can only mixin 1 effect, what if I have multiple effects that I want them to be stateful across the whole program.
+- all other effects need to be lift to FreeT as well. It will have huge impact to our existing code base that is Free already.
 
 ## The Ultimate Solution
 
@@ -69,7 +69,7 @@ It's the similar proccess to using the effects
 
 e.g. our `Program` has lot of effects... WriterT, Http4sClient, ReaderT, IO, StateT and Doobie's ConnectionIO
 
-few of them are need to be stateful across program like WriterT, StateT and ReaderT
+few of them need to be stateful across all over the program like WriterT, StateT and ReaderT
 ```scala
 type Program[A] = Eff6[
       Http4sClient[IO, ?],
@@ -83,7 +83,7 @@ type Program[A] = Eff6[
 type ProgramF[A] = Free[Program, A]
 ```
 
-`EffX` is predefine alias of type constructor for `EitherK`
+`EffX` is predefined alias of type to construct multiple kind in `EitherK`
 
 Now lets start using these effects to do our work
 ```scala
@@ -104,7 +104,7 @@ val program = for {
   } yield res
 ```
 
-## Step 2: Compile then Program
+## Step 2: Compile the Program
 if we compile our program, we should get a binary `ProgramBin`
 ```scala
 trait ProgramContext
