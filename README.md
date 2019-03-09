@@ -147,7 +147,7 @@ and inject them into program via `ProgramContext`
 - `logRef` is `Ref[IO, Chain[String]]`
 
 ## Implicit Debug
-the generic interpreter is very convinien that you don't have to write interperters like
+The generic interpreter is very convenient that you don't have to write interpreters like
 ```scala
 val interpreter: Program ~> ProgramBin = writerTInterp or (stateTInterp or (http4sClientInterp or (ioInterp ...)))
 ```
