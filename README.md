@@ -11,12 +11,51 @@ Extensible Free Monad Effects
 libraryDependencies += "us.oyanglul" %% "luci" % <version>"
 ```
 
-## Rationale
-Free Monad interpreter can't pass context across effect
+## The Problem
+When you want to mix in some native effects into your Free Monad DSL, some effects won't work
 
-But with [meow-mtl](https://github.com/oleg-py/meow-mtl), we can easily integrate mtl into Free Monad Effects
+for instance we have two effects IO and StateT, and we would like to do some math using StateT
 
-## Effects
+Here is the Program
+```scala
+type Program[A] = EitherK[IO, StateT[IO, Int, ?], A]
+type ProgramF[A] = Free[Program, A]
+
+def program : Program[Int] = for {
+	initState <- liftInject[Program](StateT.get[IO, Int])
+  _ <- liftInject[Program](IO(println(s"init state is $initState")))
+  _ <- liftInject[Program](StateT.modify[IO, Int](_ + 1))
+	res <- liftInject[Program](StateT.modify[IO, Int](_ + 1))
+} yield res
+```
+
+and Interpreters
+```scala
+def ioInterp = FunctionK.id[IO]
+def stateTInterp(initState: Int) = Lambda[StateT[IO, Int, ?] ~> IO[(Int, ?)]] { _.run(initState)}
+```
+
+If we run the program
+```scala
+program foldMap (ioInterp or stateTInterp(0))
+```
+
+Guess what, it doesn't work, the result will be 1 not 2
+
+because we run the state for each effect seperately in the stateTInterp
+
+One of the option is to use [FreeT](https://typelevel.org/cats/datatypes/freemonad.html#freet)
+
+But with FreeT:
+
+- you can only mixin on effect, what if I have multiple effects that I want them to be effectful across the whole program.
+- all other effects need to be lift to FreeT as well. this will have huge impact to our existing code base that is Free already.
+
+## The Ultimate Solution
+
+is using [meow-mtl](https://github.com/oleg-py/meow-mtl) and ReaderT, we can easily integrate mtl into Free Monad Effects
+
+## we have some Effects out of the box
 - WriterT
 - ReaderT/Kleisli
 - StateT
@@ -25,50 +64,48 @@ But with [meow-mtl](https://github.com/oleg-py/meow-mtl), we can easily integrat
 - Doobie ConnectionIO
 - IO
 
+It's the similar proccess to using the effects
 ## Step 1: Define your `Program`'s effects
 
 e.g. our `Program` has lot of effects... WriterT, Http4sClient, ReaderT, IO, StateT and Doobie's ConnectionIO
+
+few of them are need to be stateful across program like WriterT, StateT and ReaderT
 ```scala
-type Eff1[A] =
-  EitherK[WriterT[IO, Chain[String], ?], Http4sClient[IO, ?], A]
-type Eff2[A] =
-  EitherK[ReaderT[IO, Config, ?], Eff1, A]
-type Eff3[A] = EitherK[IO, Eff2, A]
-type Eff4[A] = EitherK[StateT[IO, Int, ?], Eff3, A]
-type Program[A] = EitherK[ConnectionIO, Eff4, A]
+type Program[A] = Eff6[
+      Http4sClient[IO, ?],
+      WriterT[IO, Chain[String], ?],
+      ReaderT[IO, Config, ?],
+      IO,
+      ConnectionIO,
+      StateT[IO, Int, ?],
+      A
+    ]
 type ProgramF[A] = Free[Program, A]
 ```
 
+`EffX` is predefine alias of type constructor for `EitherK`
+
+Now lets start using these effects to do our work
 ```scala
 val program = for {
-    config <- Free.liftInject[Program](Kleisli.ask[IO, Config])
-    state <- Free.liftInject[Program](StateT.get[IO, Int])
-    _ <- Free.liftInject[Program](StateT.modify[IO, Int](1 + _))
-    _ <- Free.liftInject[Program](
+    config <- liftInject[Program](Kleisli.ask[IO, Config])
+    state <- liftInject[Program](StateT.get[IO, Int])
+    _ <- liftInject[Program](StateT.modify[IO, Int](1 + _))
+    _ <- liftInject[Program](
       WriterT.tell[IO, Chain[String]](
         Chain.one("config: " + config.environment)))
-    _ <- Free.liftInject[Program](for {
+    _ <- liftInject[Program](for {
        _ <- sql"""insert into test values (4)""".update.run
        _ <- sql"""insert into test values (5)""".update.run
       } yield ())
-    _ <- Free.liftInject[Program](
+    _ <- liftInject[Program](
       IO(println(s"im IO...state: $state")))
-    res <- Free.liftInject[Program](Ok("live"))
+    res <- liftInject[Program](Ok("live"))
   } yield res
 ```
 
-## Step 2: Compile Program
+## Step 2: Compile then Program
 if we compile our program, we should get a binary `ProgramBin`
-```scala
-type ProgramBin[A] = Kleisli[IO, ProgramContext, A]
-val binary = program foldMap implicitly[Program ~> ProgramBin]
-```
-
-## Step 3: Run Program
-imagine that you have a binary of command line tool, when you run it you would probably need to provide some `--args`
-
-same here, if you want to run `ProgramBin`, which is basically just a Kleisli, we need to provide args with is `ProgramContext`
-
 ```scala
 trait ProgramContext
         extends WriterTEnv[IO, Chain[String]]
@@ -77,6 +114,20 @@ trait ProgramContext
         with DoobieEnv[IO]
         with ProgramEnv
 
+import us.oyanglul.interpreters.generic._
+type ProgramBin[A] = Kleisli[IO, ProgramContext, A]
+val binary = program foldMap implicitly[Program ~> ProgramBin]
+```
+imagine that you have a binary of command line tool, when you run it you would probably need to provide some `--args`
+
+same here, if you want to run `ProgramBin`, which is basically just a Kleisli, we need to provide args with is `ProgramContext`
+
+`import us.oyanglul.interpreters.generic._` so we can infer the correct interpreters to use base on your `Program` type
+
+## Step 3: Run Program
+
+run the program with real `--args`
+```scala
 binary.run(new ProgramContext {
   val enviroment = "production"
   val stateT = stateRef.stateInstance
@@ -86,5 +137,4 @@ binary.run(new ProgramContext {
 })
 ```
 
-
-- [API Doc](https://oss.sonatype.org/service/local/repositories/releases/archive/us/oyanglul/luci_2.12/0.0.1/luci_2.12-0.0.1-javadoc.jar/!/us/oyanglul/luci/index.html)
+- [Scala Doc](https://index.scala-lang.org/jcouyang/luci/luci)
