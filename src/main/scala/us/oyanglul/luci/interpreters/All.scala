@@ -7,3 +7,4 @@ trait All
     with StateTInterp
     with IoInterp
     with DoobieInterp
+    with EitherInterp

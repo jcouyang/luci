@@ -12,7 +12,7 @@ trait DoobieEnv[E[_]] {
 }
 
 trait DoobieInterp {
-  implicit def dbInterp[E[_]: Monad]
+  implicit def doobieInterp[E[_]: Monad]
     : ConnectionIO ~> Kleisli[E, DoobieEnv[E], ?] =
     Lambda[ConnectionIO ~> Kleisli[E, DoobieEnv[E], ?]](dbops =>
       Kleisli { _.doobieTransactor.trans.apply(dbops) })

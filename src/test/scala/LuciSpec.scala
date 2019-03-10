@@ -6,9 +6,11 @@ import cats.data._
 import cats.effect.concurrent.Ref
 import cats.effect.{IO, Resource}
 import cats.free.Free
+import cats.syntax.all._
+import cats.instances.all._
 import doobie.free.connection.{ConnectionIO}
 import effects.Http4sClient
-// import doobie.util.log.LogHandler
+import doobie.util.log.LogHandler
 import doobie.util.transactor.{Transactor}
 import resources._
 
@@ -18,16 +20,17 @@ import org.http4s.dsl.io.{Ok, _}
 import org.http4s._
 import org.specs2.mutable.Specification
 import org.http4s.implicits._
-// import doobie.implicits._
+import doobie.implicits._
 import scala.concurrent.ExecutionContext.Implicits.global
 import com.olegpy.meow.effects._
-import cats.syntax.all._
 import org.http4s.client.dsl.io._
 
 import scala.concurrent.ExecutionContext
+import interpreters._
 import interpreters.all._
 import interpreters.generic._
 import interpreters._
+import Free.liftInject
 class LuciSpec extends Specification with DatabaseResource {
   implicit val cs = IO.contextShift(ExecutionContext.global)
   type FreeRoute[F[_], G[_]] =
@@ -44,10 +47,11 @@ class LuciSpec extends Specification with DatabaseResource {
 
     case class AppContext(transactor: Transactor[IO], http: Client[IO])
 
-    type Program[A] = Eff6[
+    type Program[A] = Eff7[
       Http4sClient[IO, ?],
       WriterT[IO, Chain[String], ?],
       ReaderT[IO, Config, ?],
+      Either[Throwable, ?],
       IO,
       ConnectionIO,
       StateT[IO, Int, ?],
@@ -71,23 +75,25 @@ class LuciSpec extends Specification with DatabaseResource {
 
     "And a Application".p.tab
     def createApp(implicit ctx: AppContext) = {
+      implicit val han = LogHandler.jdkLogHandler
+      val dbOps = for {
+        _ <- sql"""insert into test values (4)""".update.run
+        _ <- sql"""insert into test values ('aaa1')""".update.run
+      } yield ()
       val ping = freeRoute[IO, Program] {
         case _ @GET -> Root =>
-          // implicit val han = LogHandler.jdkLogHandler
           for {
-            config <- Free.liftInject[Program](Kleisli.ask[IO, Config])
-            state1 <- Free.liftInject[Program](StateT.get[IO, Int])
-            _ <- Free.liftInject[Program](StateT.modify[IO, Int](1 + _))
-            _ <- Free.liftInject[Program](
+            config <- liftInject[Program](Kleisli.ask[IO, Config])
+            state1 <- liftInject[Program](StateT.get[IO, Int])
+            _ <- liftInject[Program](StateT.modify[IO, Int](1 + _))
+            _ <- liftInject[Program](
               WriterT.tell[IO, Chain[String]](
                 Chain.one("config: " + config.token)))
-            // _ <- Free.liftInject[Program](for {
-            // _ <- sql"""insert into test values (4)""".update.run
-            // _ <- sql"""insert into test values ('aaa1')""".update.run
-            // } yield ())
-            _ <- Free.liftInject[Program](
-              IO(println(s"im IO...state: $state1")))
-            res <- Free.liftInject[Program](Ok("live"))
+            resOrError <- liftInject[Program](dbOps.attempt)
+            _ <- liftInject[Program](
+              resOrError.handleError(e => println(s"handle db error $e")))
+            _ <- liftInject[Program](IO(println(s"im IO...state: $state1")))
+            res <- liftInject[Program](Ok("live"))
           } yield res
       }
       ping.map(runProgram)
@@ -100,6 +106,11 @@ class LuciSpec extends Specification with DatabaseResource {
       }.asRight[Throwable]).use {
         case (logEff, _, stateEff) =>
           val binary = program foldMap implicitly[Program ~> ProgramBin]
+          // (http4sClientInterp[IO] or (writerInterp[
+          //   IO,
+          //   Chain[String]] or (readerTInterp[IO, Config] or (eitherInterp[
+          //   Throwable,
+          //   IO] or (ioInterp or (doobieInterp[IO] or stateTInterp[IO, Int]))))))
           binary.run(new ProgramContext {
             val token = "hehe"
             val stateT = stateEff.stateInstance
