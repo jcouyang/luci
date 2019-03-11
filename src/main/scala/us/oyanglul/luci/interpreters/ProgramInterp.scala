@@ -1,23 +1,21 @@
 package us.oyanglul.luci
 package interpreters
 
-import cats._
+import cats.~>
 import cats.data.{EitherK, Kleisli}
-import cats.effect.IO
 
 object generic extends HighPriorityImplicits
 
 trait HighPriorityImplicits extends LowPriorityImplicits {
   implicit def highPriorityInterp[E[_], F[_], G[_], H[_], A, B](
       implicit foldl: F ~> Kleisli[E, A, ?],
+      ev1: B <:< A,
       foldr: EitherK[G, H, ?] ~> Kleisli[E, B, ?],
-      ev1: B <:< A
   ): EitherK[F, EitherK[G, H, ?], ?] ~> Kleisli[E, B, ?] =
     Lambda[EitherK[F, EitherK[G, H, ?], ?] ~> Kleisli[E, B, ?]] { et =>
-      val convl = (foldl andThen new (Kleisli[E, A, ?] ~> Kleisli[E, B, ?]) {
-        def apply[D](kl: Kleisli[E, A, D]): Kleisli[E, B, D] =
-          Contravariant[Kleisli[E, ?, D]].contramap(kl)(ev1)
-      })
+      val convl = foldl andThen Lambda[Kleisli[E, A, ?] ~> Kleisli[E, B, ?]] {
+        _.local(ev1)
+      }
       et.fold(convl, foldr)
     }
 }
@@ -25,19 +23,17 @@ trait HighPriorityImplicits extends LowPriorityImplicits {
 trait LowPriorityImplicits {
   implicit def lowPriorityInter[E[_], F[_], G[_], A, B, C](
       implicit foldl: F ~> Kleisli[E, A, ?],
-      foldr: G ~> Kleisli[E, B, ?],
       ev1: C <:< A,
+      foldr: G ~> Kleisli[E, B, ?],
       ev2: C <:< B,
   ): EitherK[F, G, ?] ~> Kleisli[E, C, ?] =
     Lambda[EitherK[F, G, ?] ~> Kleisli[E, C, ?]] { et =>
-      val convl = (foldl andThen new (Kleisli[E, A, ?] ~> Kleisli[E, C, ?]) {
-        def apply[D](kl: Kleisli[E, A, D]): Kleisli[E, C, D] =
-          Contravariant[Kleisli[E, ?, D]].contramap(kl)(ev1)
-      })
-      val convr = (foldr andThen new (Kleisli[E, B, ?] ~> Kleisli[E, C, ?]) {
-        def apply[D](kl: Kleisli[E, B, D]): Kleisli[E, C, D] =
-          Contravariant[Kleisli[E, ?, D]].contramap(kl)(ev2)
-      })
+      val convl = foldl andThen Lambda[Kleisli[E, A, ?] ~> Kleisli[E, C, ?]] {
+        _.local(ev1)
+      }
+      val convr = foldr andThen Lambda[Kleisli[E, B, ?] ~> Kleisli[E, C, ?]] {
+        _.local(ev2)
+      }
       et.fold(convl, convr)
     }
 }
@@ -65,6 +61,7 @@ private trait Test {
   import effects._
   import doobie.free.connection.ConnectionIO
   import cats.data._
+  import cats.effect.IO
   import interpreters.all._
   trait Config
 
