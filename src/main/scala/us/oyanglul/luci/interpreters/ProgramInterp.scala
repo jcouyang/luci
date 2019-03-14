@@ -19,7 +19,7 @@ trait Interpretable[F[_], E[_]] {
   val interp: F ~> Kleisli[E, Env, ?]
 }
 
-trait GenericInterpreter extends DoobieInterp2 {
+trait GenericInterpreter {
   implicit def canInterp2[A[_], B[_]](implicit ia: Interpretable[A, IO],
                                       ib: Interpretable[B, IO]) =
     new Interpretable[EitherK[A, B, ?], IO] {
@@ -50,16 +50,18 @@ trait GenericInterpreter extends DoobieInterp2 {
 
   case class Context[A](value: A)
 
-  implicit def doobieInterp2: Interpretable[ConnectionIO, IO] =
+  implicit def doobieInterp2 =
     new Interpretable[ConnectionIO, IO] {
-      type Env = Context[Transactor[IO]]
+      type Env = Transactor[IO]
       val interp = new (ConnectionIO ~> Kleisli[IO, Env, ?]) {
         def apply[A](dbops: ConnectionIO[A]) =
-          Kleisli { _.value.trans.apply(dbops) }
+          Kleisli { _ =>
+            ???
+          }
       }
     }
 
-  implicit def ioInterp2: Interpretable[IO, IO] = new Interpretable[IO, IO] {
+  implicit val ioInterp2 = new Interpretable[IO, IO] {
     type Env = Any
     val interp = FunctionK.id[IO].liftK[Any]
   }
@@ -89,11 +91,11 @@ trait GenericInterpreter extends DoobieInterp2 {
     .interp(EitherK.rightc(BB("234")))
     .run((null: Client[IO]) :: "2" :: HNil)
 
-  canInterp2[ConnectionIO, BB]
-    .interp(EitherK.rightc(BB("234")))
-    .run((null: Context[Transactor[IO]]) :: "2" :: HNil)
+  canInterp2[ConnectionIO, Http4sClient[IO, ?]]
+    .interp(EitherK.leftc(a))
+    .run((null: Transactor[IO]) :: (null: Client[IO]) :: HNil)
 
-  val i = canInterp2[Http4sClient[IO, ?], IO]
+  canInterp2[Http4sClient[IO, ?], IO]
     .interp(EitherK.rightc[Http4sClient[IO, ?], IO, Boolean](IO(true)))
 }
 
