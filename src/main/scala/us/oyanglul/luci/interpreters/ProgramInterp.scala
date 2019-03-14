@@ -19,7 +19,11 @@ trait Interpretable[F[_], E[_]] {
   val interp: F ~> Kleisli[E, Env, ?]
 }
 
-trait GenericInterpreter {
+object Interpretable {
+  type Aux[F[_], E[_], R] = Interpretable[F, E] { type Env = R }
+}
+
+trait GenericLowPriorityInterp {
   implicit def canInterp2[A[_], B[_]](implicit ia: Interpretable[A, IO],
                                       ib: Interpretable[B, IO]) =
     new Interpretable[EitherK[A, B, ?], IO] {
@@ -30,6 +34,23 @@ trait GenericInterpreter {
           case Right(b) => ib.interp(b).local(_.select[ib.Env])
         }
       }
+    }
+
+}
+trait GenericInterpreter extends GenericLowPriorityInterp {
+  implicit def canInterp3[A[_], B[_], C[_], D <: HList](
+      implicit
+      ia: Lazy[Interpretable[A, IO]],
+      ib: Interpretable.Aux[EitherK[B, C, ?], IO, D]) =
+    new Interpretable[EitherK[A, EitherK[B, C, ?], ?], IO] {
+      type Env = ia.value.Env :: D
+      val interp =
+        Lambda[EitherK[A, EitherK[B, C, ?], ?] ~> Kleisli[IO, Env, ?]] {
+          _.run match {
+            case Left(a)  => ia.value.interp(a).local(_.head)
+            case Right(b) => ib.interp(b).local(_.tail)
+          }
+        }
     }
 
   implicit def canInterpHttp4sClient =
@@ -86,6 +107,22 @@ trait GenericInterpreter {
   }
 
   canInterp2[AA, BB].interp(EitherK.rightc(BB("234"))).run(1 :: "2" :: HNil)
+
+
+    canInterp3[AA,
+             BB,
+      IO,
+             String :: Any  :: HNil]
+    .interp(EitherK.rightc(EitherK.leftc(BB("12"))))
+    .run(1 :: "2" :: IO("") :: HNil)
+
+    canInterp3[AA,
+             BB,
+             EitherK[IO, ConnectionIO, ?],
+             String :: Any :: Transactor[IO] :: HNil]
+    .interp(EitherK.rightc(EitherK.leftc(BB("12"))))
+    .run(1 :: "2" :: IO("") :: HNil)
+
 
   canInterp2[Http4sClient[IO, ?], BB]
     .interp(EitherK.rightc(BB("234")))
