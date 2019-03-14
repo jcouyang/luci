@@ -1,10 +1,101 @@
 package us.oyanglul.luci
 package interpreters
 
+import cats.arrow.FunctionK
 import cats.~>
 import cats.data.{EitherK, Kleisli}
+import doobie.util.transactor.Transactor
+
+import org.http4s.client.Client
+import shapeless._
+import cats.effect.IO
+import effects._
+import doobie.free.connection.{ConnectionIO}
 
 object generic extends HighPriorityImplicits
+
+trait Interpretable[F[_], E[_]] {
+  type Env
+  val interp: F ~> Kleisli[E, Env, ?]
+}
+
+trait GenericInterpreter extends DoobieInterp2 {
+  implicit def canInterp2[A[_], B[_]](implicit ia: Interpretable[A, IO],
+                                      ib: Interpretable[B, IO]) =
+    new Interpretable[EitherK[A, B, ?], IO] {
+      type Env = ia.Env :: ib.Env :: HNil
+      val interp = Lambda[EitherK[A, B, ?] ~> Kleisli[IO, Env, ?]] {
+        _.run match {
+          case Left(a)  => ia.interp(a).local(_.select[ia.Env])
+          case Right(b) => ib.interp(b).local(_.select[ib.Env])
+        }
+      }
+    }
+
+  implicit def canInterpHttp4sClient =
+    new Interpretable[Http4sClient[IO, ?], IO] {
+      type Env = Client[IO]
+      val interp = new (Http4sClient[IO, ?] ~> Kleisli[IO, Env, ?]) {
+        def apply[A](a: Http4sClient[IO, A]) = {
+          a match {
+            case b @ Expect(request) =>
+              implicit val d = b.decoder
+              Kleisli(_.expect[A](request))
+            case c: GetStatus[IO] =>
+              Kleisli(_.status(c.req))
+          }
+        }
+      }
+    }
+
+  case class Context[A](value: A)
+
+  implicit def doobieInterp2: Interpretable[ConnectionIO, IO] =
+    new Interpretable[ConnectionIO, IO] {
+      type Env = Context[Transactor[IO]]
+      val interp = new (ConnectionIO ~> Kleisli[IO, Env, ?]) {
+        def apply[A](dbops: ConnectionIO[A]) =
+          Kleisli { _.value.trans.apply(dbops) }
+      }
+    }
+
+  implicit def ioInterp2: Interpretable[IO, IO] = new Interpretable[IO, IO] {
+    type Env = Any
+    val interp = FunctionK.id[IO].liftK[Any]
+  }
+  import doobie.implicits._
+
+  val a = sql"select true".query[Boolean].unique
+
+  case class AA[T](a: T)
+  case class BB[T](b: T)
+
+  implicit val canInterpA = new Interpretable[AA, cats.effect.IO] {
+    type Env = Int
+    val interp = Lambda[AA ~> Kleisli[IO, Env, ?]] {
+      case AA(a) => Kleisli(_ => IO(a))
+    }
+  }
+  implicit val canInterpB = new Interpretable[BB, cats.effect.IO] {
+    type Env = String
+    val interp = Lambda[BB ~> Kleisli[IO, Env, ?]] {
+      case BB(b) => Kleisli(_ => IO(b))
+    }
+  }
+
+  canInterp2[AA, BB].interp(EitherK.rightc(BB("234"))).run(1 :: "2" :: HNil)
+
+  canInterp2[Http4sClient[IO, ?], BB]
+    .interp(EitherK.rightc(BB("234")))
+    .run((null: Client[IO]) :: "2" :: HNil)
+
+  canInterp2[ConnectionIO, BB]
+    .interp(EitherK.rightc(BB("234")))
+    .run((null: Context[Transactor[IO]]) :: "2" :: HNil)
+
+  val i = canInterp2[Http4sClient[IO, ?], IO]
+    .interp(EitherK.rightc[Http4sClient[IO, ?], IO, Boolean](IO(true)))
+}
 
 trait HighPriorityImplicits extends LowPriorityImplicits {
   implicit def highPriorityInterp[E[_], F[_], G[_], H[_], A, B](
