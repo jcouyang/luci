@@ -10,8 +10,6 @@ import cats.effect.IO
 import cats.mtl.{FunctorTell, MonadState}
 import effects._
 
-object generic extends HighPriorityImplicits
-
 trait CoflattenLowPriority extends Poly1 {
   implicit def anyCase[A]: Case.Aux[A, A :: HNil] = {
     at(a => a :: HNil)
@@ -31,7 +29,7 @@ trait Compiler[F[_], E[_]] {
   val compile: F ~> Kleisli[E, Env, ?]
 }
 
-trait LowPriorityInterpreter[E[_]] {
+trait LowPriorityGenericCompiler[E[_]] {
   def compile[F1[_], F2[_], A](eff: EitherK[F1, F2, A])(implicit
                                                         ev1: Compiler[F1, E],
                                                         ev2: Compiler[F2, E]) =
@@ -49,9 +47,9 @@ trait LowPriorityInterpreter[E[_]] {
       }
     }
 }
-object Compiler extends GenericInterpreter[IO]
+object Compiler extends GenericCompiler[IO]
 
-trait GenericInterpreter[E[_]] extends LowPriorityInterpreter[E] {
+trait GenericCompiler[E[_]] extends LowPriorityGenericCompiler[E] {
   def compile[F1[_], F2[_], F3[_], A, Eff[A] <: EitherK[F2, F3, A]](
       eff: EitherK[F1, EitherK[F2, F3, ?], A])(
       implicit
@@ -73,57 +71,6 @@ trait GenericInterpreter[E[_]] extends LowPriorityInterpreter[E] {
         }
     }
 }
-
-trait HighPriorityImplicits extends LowPriorityImplicits {
-  implicit def highPriorityInterp[E[_], F[_], G[_], H[_], A, B](
-      implicit foldl: F ~> Kleisli[E, A, ?],
-      ev1: B <:< A,
-      foldr: EitherK[G, H, ?] ~> Kleisli[E, B, ?],
-  ): EitherK[F, EitherK[G, H, ?], ?] ~> Kleisli[E, B, ?] =
-    Lambda[EitherK[F, EitherK[G, H, ?], ?] ~> Kleisli[E, B, ?]] { et =>
-      val convl = foldl andThen Lambda[Kleisli[E, A, ?] ~> Kleisli[E, B, ?]] {
-        _.local(ev1)
-      }
-      et.fold(convl, foldr)
-    }
-}
-
-trait LowPriorityImplicits {
-  implicit def lowPriorityInter[E[_], F[_], G[_], A, B, C](
-      implicit foldl: F ~> Kleisli[E, A, ?],
-      ev1: C <:< A,
-      foldr: G ~> Kleisli[E, B, ?],
-      ev2: C <:< B,
-  ): EitherK[F, G, ?] ~> Kleisli[E, C, ?] =
-    Lambda[EitherK[F, G, ?] ~> Kleisli[E, C, ?]] { et =>
-      val convl = foldl andThen Lambda[Kleisli[E, A, ?] ~> Kleisli[E, C, ?]] {
-        _.local(ev1)
-      }
-      val convr = foldr andThen Lambda[Kleisli[E, B, ?] ~> Kleisli[E, C, ?]] {
-        _.local(ev2)
-      }
-      et.fold(convl, convr)
-    }
-}
-
-trait DebugInterp {
-  @scala.annotation.implicitNotFound(
-    """
-Sorry, luci cannot find ${F} ~> Kleisli[${E}, ${A}, ?]
-Please make sure:
-1. You have implicit value of type `${F} ~> Kleisli[${E}, T, ?]` avaiable in context
-2. ${A} extends your T in `${F} ~> Kleisli[${E}, T, ?]`
-3. still won't compile? try `scalacOptions += "-Xlog-implicits"`
-""")
-  type CanInterp[F[_], E[_], A] = F ~> Kleisli[E, A, ?]
-
-  implicit def debugInterp[E[_], F[_], A, B](
-      implicit foldl: F ~> Kleisli[E, A, ?],
-      ev1: B <:< A
-  ): CanInterp[F, E, B] = ???
-}
-
-object debug extends DebugInterp
 
 private trait ShapeLessTest extends All[IO] {
   import Compiler._
