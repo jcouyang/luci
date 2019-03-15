@@ -19,17 +19,17 @@ trait Compiler[F[_], E[_]] {
   val compile: F ~> Kleisli[E, Env, ?]
 }
 
-trait LowPriorityInterpreter {
-  def apply[F1[_], F2[_], A](eff: EitherK[F1, F2, A])(implicit
-                                                      ev1: Compiler[F1, IO],
-                                                      ev2: Compiler[F2, IO]) =
+trait LowPriorityInterpreter[E[_]] {
+  def compile[F1[_], F2[_], A](eff: EitherK[F1, F2, A])(implicit
+                                                        ev1: Compiler[F1, E],
+                                                        ev2: Compiler[F2, E]) =
     compile2[F1, F2].compile(eff)
 
-  implicit def compile2[A[_], B[_]](implicit ia: Compiler[A, IO],
-                                    ib: Compiler[B, IO]) =
-    new Compiler[EitherK[A, B, ?], IO] {
+  implicit def compile2[A[_], B[_]](implicit ia: Compiler[A, E],
+                                    ib: Compiler[B, E]) =
+    new Compiler[EitherK[A, B, ?], E] {
       type Env = ia.Env :: ib.Env :: HNil
-      val compile = Lambda[EitherK[A, B, ?] ~> Kleisli[IO, Env, ?]] {
+      val compile = Lambda[EitherK[A, B, ?] ~> Kleisli[E, Env, ?]] {
         _.run match {
           case Left(a)  => ia.compile(a).local(_.head)
           case Right(b) => ib.compile(b).local(_.tail.head)
@@ -38,14 +38,14 @@ trait LowPriorityInterpreter {
     }
 }
 object Compiler extends GenericInterpreter {
-  def apply[F1[_], F2[_], F3[_], A, Eff[A] <: EitherK[F2, F3, A]](
+  def compile[F1[_], F2[_], F3[_], A, Eff[A] <: EitherK[F2, F3, A]](
       eff: EitherK[F1, EitherK[F2, F3, ?], A])(
       implicit
       ev1: Lazy[Compiler[F1, IO]],
       ev2: Compiler[EitherK[F2, F3, ?], IO]) =
-    compile3[F1, F2, F3].compile(eff)
+    compileN[F1, F2, F3].compile(eff)
 
-  implicit def compile3[A[_], B[_], C[_]](implicit
+  implicit def compileN[A[_], B[_], C[_]](implicit
                                           ia: Lazy[Compiler[A, IO]],
                                           ib: Compiler[EitherK[B, C, ?], IO]) =
     new Compiler[EitherK[A, EitherK[B, C, ?], ?], IO] {
@@ -60,7 +60,7 @@ object Compiler extends GenericInterpreter {
     }
 }
 
-trait GenericInterpreter extends LowPriorityInterpreter {
+trait GenericInterpreter extends LowPriorityInterpreter[IO] {
 
   implicit def canInterpHttp4sClient =
     new Compiler[Http4sClient[IO, ?], IO] {
@@ -169,12 +169,14 @@ object debug extends DebugInterp
 
 private trait ShapeLess extends GenericInterpreter {
   val app = EitherK.rightc[AA, BB, String](BB("234"))
-  Compiler(app)
+  Compiler
+    .compile(app)
     .run((1 :: "2" :: HNil).map(hoho))
 
-  Compiler(
-    EitherK.rightc[AA, EitherK[BB, IO, ?], String](
-      EitherK.leftc[BB, IO, String](BB("12"))))
+  Compiler
+    .compile(
+      EitherK.rightc[AA, EitherK[BB, IO, ?], String](
+        EitherK.leftc[BB, IO, String](BB("12"))))
     .run((1 :: "2" :: Unit :: HNil).map(hoho))
 
   val iii = implicitly[
@@ -208,7 +210,8 @@ private trait ShapeLess extends GenericInterpreter {
   //   .interp(EitherK.rightc(EitherK.leftc(BB("12"))))
   //   .run(hhhh)
 
-  Compiler(EitherK.rightc[Http4sClient[IO, ?], BB, String](BB("234")))
+  Compiler
+    .compile(EitherK.rightc[Http4sClient[IO, ?], BB, String](BB("234")))
     .run(((null: Client[IO]) :: "2" :: HNil).map(hoho))
 
   compile2[ConnectionIO, Http4sClient[IO, ?]]
