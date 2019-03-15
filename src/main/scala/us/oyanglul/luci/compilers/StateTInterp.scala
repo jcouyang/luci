@@ -1,5 +1,5 @@
 package us.oyanglul.luci
-package interpreters
+package compilers
 
 import cats.mtl.MonadState
 import cats.{Monad}
@@ -8,21 +8,6 @@ import cats.syntax.functor._
 import cats.~>
 import cats.data._
 import shapeless._
-
-trait StateTEnv[E[_], F] {
-  val stateT: MonadState[E, F]
-}
-
-trait StateTInterp {
-  implicit def stateTInterp[E[_]: Monad, L] =
-    Lambda[StateT[E, L, ?] ~> Kleisli[E, StateTEnv[E, L], ?]](state =>
-      ReaderT(env =>
-        for {
-          currentState <- env.stateT.get
-          (nextState, value) <- state.run(currentState)
-          _ <- env.stateT.set(nextState)
-        } yield value))
-}
 
 trait StateTCompiler[E[_]] {
   implicit def stateTCompiler[L](implicit ev: Monad[E]) =

@@ -1,5 +1,5 @@
 package us.oyanglul.luci
-package interpreters
+package compilers
 
 import cats.~>
 import cats.data.{EitherK, Kleisli}
@@ -125,13 +125,7 @@ Please make sure:
 
 object debug extends DebugInterp
 
-private trait ShapeLessTest
-    extends Http4sClientCompiler[IO]
-    with DoobieCompiler[IO]
-    with IoCompiler[IO]
-    with ReaderTCompiler[IO]
-    with StateTCompiler[IO]
-    with WriterTCompiler[IO] {
+private trait ShapeLessTest extends All[IO] {
   import Compiler._
   import doobie.free.connection.ConnectionIO
   import cats.data._
@@ -170,33 +164,4 @@ private trait ShapeLessTest
     .run(((null: Client[IO]) :: (null: Transactor[IO]) :: Unit :: HNil)
       .map(coflatten))
 
-}
-private trait Test {
-  import effects._
-  import doobie.free.connection.ConnectionIO
-  import cats.data._
-  import cats.effect.IO
-  import interpreters.all._
-  trait Config
-
-  type Program[A] = Eff6[
-    Http4sClient[IO, ?],
-    WriterT[IO, Chain[String], ?],
-    ReaderT[IO, Config, ?],
-    IO,
-    ConnectionIO,
-    StateT[IO, Int, ?],
-    A
-  ]
-
-  trait ProgramContext
-      extends WriterTEnv[IO, Chain[String]]
-      with StateTEnv[IO, Int]
-      with HttpClientEnv[IO]
-      with DoobieEnv[IO]
-      with Config
-
-  import debug._
-  implicitly[CanInterp[ConnectionIO, IO, ProgramContext]]
-  implicitly[CanInterp[Http4sClient[IO, ?], IO, ProgramContext]]
 }

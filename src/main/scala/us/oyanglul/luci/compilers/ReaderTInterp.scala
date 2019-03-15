@@ -1,11 +1,7 @@
-package us.oyanglul.luci.interpreters
+package us.oyanglul.luci.compilers
 import cats.arrow.FunctionK
 import cats.data.Kleisli
 import shapeless._
-
-trait ReaderTInterp {
-  implicit def readerTInterp[E[_], C] = FunctionK.id[Kleisli[E, C, ?]]
-}
 
 trait ReaderTCompiler[E[_]] {
   implicit def readerTCompiler[C <: HList] = new Compiler[Kleisli[E, C, ?], E] {

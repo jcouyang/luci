@@ -26,10 +26,10 @@ import com.olegpy.meow.effects._
 import org.http4s.client.dsl.io._
 
 import scala.concurrent.ExecutionContext
-import interpreters._
-import interpreters.all._
-import interpreters.generic._
-import interpreters._
+import compilers._
+import compilers.all._
+import compilers.generic._
+import compilers._
 import Free.liftInject
 class LuciSpec extends Specification with DatabaseResource {
   implicit val cs = IO.contextShift(ExecutionContext.global)

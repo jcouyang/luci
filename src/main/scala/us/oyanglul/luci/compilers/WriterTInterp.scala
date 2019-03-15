@@ -1,5 +1,5 @@
 package us.oyanglul.luci
-package interpreters
+package compilers
 
 import cats.{Monad}
 import cats.syntax.flatMap._
@@ -10,22 +10,6 @@ import cats.~>
 import cats.data._
 import cats.syntax.apply._
 import shapeless._
-
-trait WriterTEnv[E[_], F] {
-  val writerT: FunctorTell[E, F]
-}
-
-trait WriterTInterp {
-  implicit def writerInterp[E[_]: Monad, L: Semigroup] =
-    Lambda[WriterT[E, L, ?] ~> Kleisli[E, WriterTEnv[E, L], ?]](writer =>
-      ReaderT(env => {
-        writer.run.flatMap {
-          case (l, v) =>
-            env.writerT.tell(l) *>
-              Monad[E].pure(v)
-        }
-      }))
-}
 
 trait WriterTCompiler[E[_]] {
   implicit def writerCompile[L: Semigroup](implicit ev: Monad[E]) =

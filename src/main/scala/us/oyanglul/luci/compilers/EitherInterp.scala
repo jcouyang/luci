@@ -1,5 +1,5 @@
 package us.oyanglul.luci
-package interpreters
+package compilers
 
 import cats.{MonadError}
 import cats.~>
