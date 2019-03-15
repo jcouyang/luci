@@ -4,12 +4,10 @@ package interpreters
 import cats.~>
 import cats.data.{EitherK, Kleisli}
 import doobie.util.transactor.Transactor
-
 import org.http4s.client.Client
 import shapeless._
 import cats.effect.IO
 import effects._
-import doobie.free.connection.{ConnectionIO}
 
 object generic extends HighPriorityImplicits
 
@@ -131,10 +129,31 @@ private trait ShapeLessTest
     with DoobieCompiler[IO]
     with IoCompiler[IO] {
   import Compiler._
-  val app = EitherK.rightc[ConnectionIO, IO, String](IO("234"))
-  Compiler
-    .compile(app)
-    .run(((null: Transactor[IO]) :: Unit :: HNil).map(coflatten))
+  import doobie.free.connection.ConnectionIO
+  import cats.data._
+  import cats.effect.IO
+  trait Config
+
+  type Program[A] = Eff3[
+    Http4sClient[IO, ?],
+//    WriterT[IO, Chain[String], ?],
+//    ReaderT[IO, Config, ?],
+    IO,
+    ConnectionIO,
+//    StateT[IO, Int, ?],
+    A
+  ]
+
+  val app = cats.free.Free.liftInject[Program](IO("hehe"))
+  type ProgramBin[A] = Kleisli[
+    IO,
+    (org.http4s.client.Client[cats.effect.IO] :: shapeless.HNil) :: shapeless.HNil :: (doobie.util.transactor.Transactor[
+      cats.effect.IO] :: shapeless.HNil) :: shapeless.HNil,
+    A]
+  app
+    .foldMap(Lambda[Program ~> ProgramBin](Compiler.compile(_)))
+    .run(((null: Client[IO]) :: Unit :: (null: Transactor[IO]) :: HNil)
+      .map(coflatten))
 
   Compiler
     .compile(
