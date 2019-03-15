@@ -6,7 +6,6 @@ import cats.data.{EitherK, Kleisli}
 import doobie.util.transactor.Transactor
 import org.http4s.client.Client
 import shapeless._
-import cats.effect.IO
 import cats.mtl.{FunctorTell, MonadState}
 import effects._
 
@@ -71,7 +70,8 @@ trait GenericCompiler[E[_]] extends LowPriorityGenericCompiler[E] {
     }
 }
 
-private trait ShapeLessTest extends All[IO] {
+private trait ShapeLessTest {
+  import io._
   import doobie.free.connection.ConnectionIO
   import cats.data._
   import cats.effect.IO
