@@ -1,7 +1,6 @@
 package us.oyanglul.luci
 package interpreters
 
-import cats.arrow.FunctionK
 import cats.~>
 import cats.data.{EitherK, Kleisli}
 import doobie.util.transactor.Transactor
@@ -13,6 +12,20 @@ import effects._
 import doobie.free.connection.{ConnectionIO}
 
 object generic extends HighPriorityImplicits
+
+trait CoflattenLowPriority extends Poly1 {
+  implicit def anyCase[A]: Case.Aux[A, A :: HNil] = {
+    at(a => a :: HNil)
+  }
+}
+object coflatten extends CoflattenLowPriority {
+  implicit def unitCase: Case.Aux[Unit.type, HNil] = {
+    at(_ => HNil)
+  }
+  implicit def nilCase[A <: HNil]: Case.Aux[A, A] = {
+    at(a => a)
+  }
+}
 
 trait Compiler[F[_], E[_]] {
   type Env <: HList
@@ -37,83 +50,29 @@ trait LowPriorityInterpreter[E[_]] {
       }
     }
 }
-object Compiler extends GenericInterpreter {
+object Compiler extends GenericInterpreter[IO]
+
+trait GenericInterpreter[E[_]] extends LowPriorityInterpreter[E] {
   def compile[F1[_], F2[_], F3[_], A, Eff[A] <: EitherK[F2, F3, A]](
       eff: EitherK[F1, EitherK[F2, F3, ?], A])(
       implicit
-      ev1: Lazy[Compiler[F1, IO]],
-      ev2: Compiler[EitherK[F2, F3, ?], IO]) =
+      ev1: Lazy[Compiler[F1, E]],
+      ev2: Compiler[EitherK[F2, F3, ?], E]) =
     compileN[F1, F2, F3].compile(eff)
 
   implicit def compileN[A[_], B[_], C[_]](implicit
-                                          ia: Lazy[Compiler[A, IO]],
-                                          ib: Compiler[EitherK[B, C, ?], IO]) =
-    new Compiler[EitherK[A, EitherK[B, C, ?], ?], IO] {
+                                          ia: Lazy[Compiler[A, E]],
+                                          ib: Compiler[EitherK[B, C, ?], E]) =
+    new Compiler[EitherK[A, EitherK[B, C, ?], ?], E] {
       type Env = ia.value.Env :: ib.Env
       val compile =
-        Lambda[EitherK[A, EitherK[B, C, ?], ?] ~> Kleisli[IO, Env, ?]] {
+        Lambda[EitherK[A, EitherK[B, C, ?], ?] ~> Kleisli[E, Env, ?]] {
           _.run match {
             case Left(a)  => ia.value.compile(a).local(_.head)
             case Right(b) => ib.compile(b).local(_.tail)
           }
         }
     }
-}
-
-trait GenericInterpreter extends LowPriorityInterpreter[IO] {
-
-  implicit def canInterpHttp4sClient =
-    new Compiler[Http4sClient[IO, ?], IO] {
-      type Env = Client[IO] :: HNil
-      val compile = new (Http4sClient[IO, ?] ~> Kleisli[IO, Env, ?]) {
-        def apply[A](a: Http4sClient[IO, A]) = {
-          a match {
-            case b @ Expect(request) =>
-              implicit val d = b.decoder
-              Kleisli(_.head.expect[A](request))
-            case c: GetStatus[IO] =>
-              Kleisli(_.head.status(c.req))
-          }
-        }
-      }
-    }
-
-  case class Context[A](value: A)
-
-  implicit def doobieInterp2 =
-    new Compiler[ConnectionIO, IO] {
-      type Env = Transactor[IO] :: HNil
-      val compile = new (ConnectionIO ~> Kleisli[IO, Env, ?]) {
-        def apply[A](dbops: ConnectionIO[A]) =
-          Kleisli { _ =>
-            ???
-          }
-      }
-    }
-
-  implicit val ioInterp2 = new Compiler[IO, IO] {
-    type Env = HNil
-    val compile = FunctionK.id[IO].liftK[Env]
-  }
-  import doobie.implicits._
-
-  val a = sql"select true".query[Boolean].unique
-
-  case class AA[T](a: T)
-  case class BB[T](b: T)
-
-  implicit val canInterpA = new Compiler[AA, cats.effect.IO] {
-    type Env = Int :: HNil
-    val compile = Lambda[AA ~> Kleisli[IO, Env, ?]] {
-      case AA(a) => Kleisli(_ => IO(a))
-    }
-  }
-  implicit val canInterpB = new Compiler[BB, cats.effect.IO] {
-    type Env = String :: HNil
-    val compile = Lambda[BB ~> Kleisli[IO, Env, ?]] {
-      case BB(b) => Kleisli(_ => IO(b))
-    }
-  }
 }
 
 trait HighPriorityImplicits extends LowPriorityImplicits {
@@ -167,59 +126,23 @@ Please make sure:
 
 object debug extends DebugInterp
 
-private trait ShapeLess extends GenericInterpreter {
-  val app = EitherK.rightc[AA, BB, String](BB("234"))
+private trait ShapeLessTest
+    extends Http4sClientCompiler[IO]
+    with DoobieCompiler[IO]
+    with IoCompiler[IO] {
+  import Compiler._
+  val app = EitherK.rightc[ConnectionIO, IO, String](IO("234"))
   Compiler
     .compile(app)
-    .run((1 :: "2" :: HNil).map(hoho))
+    .run(((null: Transactor[IO]) :: Unit :: HNil).map(coflatten))
 
   Compiler
     .compile(
-      EitherK.rightc[AA, EitherK[BB, IO, ?], String](
-        EitherK.leftc[BB, IO, String](BB("12"))))
-    .run((1 :: "2" :: Unit :: HNil).map(hoho))
+      EitherK.rightc[Http4sClient[IO, ?], EitherK[ConnectionIO, IO, ?], String](
+        EitherK.rightc[ConnectionIO, IO, String](IO("12"))))
+    .run(((null: Client[IO]) :: (null: Transactor[IO]) :: Unit :: HNil)
+      .map(coflatten))
 
-  val iii = implicitly[
-    Compiler[EitherK[AA, EitherK[BB, EitherK[IO, ConnectionIO, ?], ?], ?], IO]]
-    .compile(EitherK.rightc(EitherK.leftc(BB("12"))))
-
-  // implicitly[Interpretable.Aux[EitherK[BB, EitherK[IO, ConnectionIO, ?], ?],
-  //                              IO,
-  //                              String :: Any :: Transactor[IO] :: HNil]]
-
-  val aaa = 1 :: "2" :: Unit :: (null: Transactor[IO]) :: HNil
-
-  trait hehe extends Poly1 {
-    implicit def anyCase[A]: Case.Aux[A, A :: HNil] = {
-      at(a => a :: HNil)
-    }
-
-  }
-
-  object hoho extends hehe {
-    implicit def sCase: Case.Aux[Unit.type, HNil] = {
-      at(_ => HNil)
-    }
-    implicit def nilCase[A <: HNil]: Case.Aux[A, A] = {
-      at(a => a)
-    }
-
-  }
-  val hhhh = aaa.map(hoho)
-  // canInterp3[AA, BB, EitherK[IO, ConnectionIO, ?]]
-  //   .interp(EitherK.rightc(EitherK.leftc(BB("12"))))
-  //   .run(hhhh)
-
-  Compiler
-    .compile(EitherK.rightc[Http4sClient[IO, ?], BB, String](BB("234")))
-    .run(((null: Client[IO]) :: "2" :: HNil).map(hoho))
-
-  compile2[ConnectionIO, Http4sClient[IO, ?]]
-    .compile(EitherK.leftc(a))
-    .run(((null: Transactor[IO]) :: (null: Client[IO]) :: HNil).map(hoho))
-
-  compile2[Http4sClient[IO, ?], IO]
-    .compile(EitherK.rightc[Http4sClient[IO, ?], IO, Boolean](IO(true)))
 }
 private trait Test {
   import effects._
