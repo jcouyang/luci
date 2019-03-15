@@ -12,7 +12,7 @@ lazy val root = (project in file("."))
   .settings(
     organization := "us.oyanglul",
     name := "luci",
-    version := "0.2.1",
+    version := "0.3.0",
     // scalacOptions += "-Xlog-implicits",
     scmInfo := Some(
       ScmInfo(

@@ -73,9 +73,9 @@ class LuciSpec extends Specification with DatabaseResource {
         case _ @GET -> Root =>
           for {
             config <- free[Program](Kleisli.ask[IO, Config])
-            state1 <- free[Program](StateT.get[IO, Int])
             _ <- free[Program](
               GetStatus[IO](GET(Uri.uri("https://blog.oyanglul.us"))))
+            _ <- free[Program](StateT.modify[IO, Int](1 + _))
             _ <- free[Program](StateT.modify[IO, Int](1 + _))
             _ <- free[Program](
               WriterT.tell[IO, Chain[String]](
@@ -83,7 +83,8 @@ class LuciSpec extends Specification with DatabaseResource {
             resOrError <- free[Program](dbOps.attempt)
             _ <- free[Program](
               resOrError.handleError(e => println(s"handle db error $e")))
-            _ <- free[Program](IO(println(s"im IO...state: $state1")))
+            state <- free[Program](StateT.get[IO, Int])
+            _ <- free[Program](IO(println(s"im IO...state: $state")))
             res <- free[Program](Ok("live"))
           } yield res
       }
