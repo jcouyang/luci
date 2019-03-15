@@ -7,6 +7,7 @@ import doobie.util.transactor.Transactor
 import org.http4s.client.Client
 import shapeless._
 import cats.effect.IO
+import cats.mtl.{FunctorTell, MonadState}
 import effects._
 
 object generic extends HighPriorityImplicits
@@ -127,33 +128,40 @@ object debug extends DebugInterp
 private trait ShapeLessTest
     extends Http4sClientCompiler[IO]
     with DoobieCompiler[IO]
-    with IoCompiler[IO] {
+    with IoCompiler[IO]
+    with ReaderTCompiler[IO]
+    with StateTCompiler[IO]
+    with WriterTCompiler[IO] {
   import Compiler._
   import doobie.free.connection.ConnectionIO
   import cats.data._
   import cats.effect.IO
-  trait Config
+  case class Config()
 
-  type Program[A] = Eff3[
+  type Program[A] = Eff6[
     Http4sClient[IO, ?],
-//    WriterT[IO, Chain[String], ?],
-//    ReaderT[IO, Config, ?],
+    WriterT[IO, Chain[String], ?],
+    ReaderT[IO, Config :: HNil, ?],
     IO,
     ConnectionIO,
-//    StateT[IO, Int, ?],
+    StateT[IO, Int, ?],
     A
   ]
 
   val app = cats.free.Free.liftInject[Program](IO("hehe"))
   type ProgramBin[A] = Kleisli[
     IO,
-    (org.http4s.client.Client[cats.effect.IO] :: shapeless.HNil) :: shapeless.HNil :: (doobie.util.transactor.Transactor[
-      cats.effect.IO] :: shapeless.HNil) :: shapeless.HNil,
+    (Client[cats.effect.IO] :: HNil) :: (FunctorTell[IO, Chain[String]] :: HNil) ::
+      (Config :: HNil) :: HNil :: (Transactor[IO] :: HNil) :: (MonadState[
+      IO,
+      Int] :: HNil) :: HNil,
     A]
   app
     .foldMap(Lambda[Program ~> ProgramBin](Compiler.compile(_)))
-    .run(((null: Client[IO]) :: Unit :: (null: Transactor[IO]) :: HNil)
-      .map(coflatten))
+    .run(
+      ((null: Client[IO]) :: (null: FunctorTell[IO, Chain[String]]) :: Config() :: Unit :: (null: Transactor[
+        IO]) :: (null: MonadState[IO, Int]) :: HNil)
+        .map(coflatten))
 
   Compiler
     .compile(
