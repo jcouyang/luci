@@ -19,11 +19,13 @@ trait Interpretable[F[_], E[_]] {
   val interp: F ~> Kleisli[E, Env, ?]
 }
 
-object Interpretable {
-  type Aux[F[_], E[_], R] = Interpretable[F, E] { type Env = R }
-}
+trait LowPriorityInterpreter {
+  def apply[F1[_], F2[_], A](eff: EitherK[F1, F2, A])(
+      implicit
+      ev1: Interpretable[F1, IO],
+      ev2: Interpretable[F2, IO]) =
+    canInterp2[F1, F2].interp(eff)
 
-trait GenericLowPriorityInterp {
   implicit def canInterp2[A[_], B[_]](implicit ia: Interpretable[A, IO],
                                       ib: Interpretable[B, IO]) =
     new Interpretable[EitherK[A, B, ?], IO] {
@@ -35,9 +37,15 @@ trait GenericLowPriorityInterp {
         }
       }
     }
-
 }
-trait GenericInterpreter extends GenericLowPriorityInterp {
+object Interpretable extends GenericInterpreter {
+  def apply[F1[_], F2[_], F3[_], A, Eff[A] <: EitherK[F2, F3, A]](
+      eff: EitherK[F1, EitherK[F2, F3, ?], A])(
+      implicit
+      ev1: Lazy[Interpretable[F1, IO]],
+      ev2: Interpretable[EitherK[F2, F3, ?], IO]) =
+    canInterp3[F1, F2, F3].interp(eff)
+
   implicit def canInterp3[A[_], B[_], C[_]](
       implicit
       ia: Lazy[Interpretable[A, IO]],
@@ -52,6 +60,9 @@ trait GenericInterpreter extends GenericLowPriorityInterp {
           }
         }
     }
+}
+
+trait GenericInterpreter extends LowPriorityInterpreter {
 
   implicit def canInterpHttp4sClient =
     new Interpretable[Http4sClient[IO, ?], IO] {
@@ -159,13 +170,13 @@ Please make sure:
 object debug extends DebugInterp
 
 private trait ShapeLess extends GenericInterpreter {
-
-  canInterp2[AA, BB]
-    .interp(EitherK.rightc(BB("234")))
+  val app = EitherK.rightc[AA, BB, String](BB("234"))
+  Interpretable(app)
     .run((1 :: "2" :: HNil).map(hoho))
 
-  canInterp3[AA, BB, IO]
-    .interp(EitherK.rightc(EitherK.leftc(BB("12"))))
+  Interpretable(
+    EitherK.rightc[AA, EitherK[BB, IO, ?], String](
+      EitherK.leftc[BB, IO, String](BB("12"))))
     .run((1 :: "2" :: Unit :: HNil).map(hoho))
 
   val iii = implicitly[
@@ -195,12 +206,11 @@ private trait ShapeLess extends GenericInterpreter {
 
   }
   val hhhh = aaa.map(hoho)
-  canInterp3[AA, BB, EitherK[IO, ConnectionIO, ?]]
-    .interp(EitherK.rightc(EitherK.leftc(BB("12"))))
-    .run(hhhh)
+  // canInterp3[AA, BB, EitherK[IO, ConnectionIO, ?]]
+  //   .interp(EitherK.rightc(EitherK.leftc(BB("12"))))
+  //   .run(hhhh)
 
-  canInterp2[Http4sClient[IO, ?], BB]
-    .interp(EitherK.rightc(BB("234")))
+  Interpretable(EitherK.rightc[Http4sClient[IO, ?], BB, String](BB("234")))
     .run(((null: Client[IO]) :: "2" :: HNil).map(hoho))
 
   canInterp2[ConnectionIO, Http4sClient[IO, ?]]
