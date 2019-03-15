@@ -14,49 +14,47 @@ import doobie.free.connection.{ConnectionIO}
 
 object generic extends HighPriorityImplicits
 
-trait Interpretable[F[_], E[_]] {
+trait Compiler[F[_], E[_]] {
   type Env <: HList
-  val interp: F ~> Kleisli[E, Env, ?]
+  val compile: F ~> Kleisli[E, Env, ?]
 }
 
 trait LowPriorityInterpreter {
-  def apply[F1[_], F2[_], A](eff: EitherK[F1, F2, A])(
-      implicit
-      ev1: Interpretable[F1, IO],
-      ev2: Interpretable[F2, IO]) =
-    canInterp2[F1, F2].interp(eff)
+  def apply[F1[_], F2[_], A](eff: EitherK[F1, F2, A])(implicit
+                                                      ev1: Compiler[F1, IO],
+                                                      ev2: Compiler[F2, IO]) =
+    compile2[F1, F2].compile(eff)
 
-  implicit def canInterp2[A[_], B[_]](implicit ia: Interpretable[A, IO],
-                                      ib: Interpretable[B, IO]) =
-    new Interpretable[EitherK[A, B, ?], IO] {
+  implicit def compile2[A[_], B[_]](implicit ia: Compiler[A, IO],
+                                    ib: Compiler[B, IO]) =
+    new Compiler[EitherK[A, B, ?], IO] {
       type Env = ia.Env :: ib.Env :: HNil
-      val interp = Lambda[EitherK[A, B, ?] ~> Kleisli[IO, Env, ?]] {
+      val compile = Lambda[EitherK[A, B, ?] ~> Kleisli[IO, Env, ?]] {
         _.run match {
-          case Left(a)  => ia.interp(a).local(_.head)
-          case Right(b) => ib.interp(b).local(_.tail.head)
+          case Left(a)  => ia.compile(a).local(_.head)
+          case Right(b) => ib.compile(b).local(_.tail.head)
         }
       }
     }
 }
-object Interpretable extends GenericInterpreter {
+object Compiler extends GenericInterpreter {
   def apply[F1[_], F2[_], F3[_], A, Eff[A] <: EitherK[F2, F3, A]](
       eff: EitherK[F1, EitherK[F2, F3, ?], A])(
       implicit
-      ev1: Lazy[Interpretable[F1, IO]],
-      ev2: Interpretable[EitherK[F2, F3, ?], IO]) =
-    canInterp3[F1, F2, F3].interp(eff)
+      ev1: Lazy[Compiler[F1, IO]],
+      ev2: Compiler[EitherK[F2, F3, ?], IO]) =
+    compile3[F1, F2, F3].compile(eff)
 
-  implicit def canInterp3[A[_], B[_], C[_]](
-      implicit
-      ia: Lazy[Interpretable[A, IO]],
-      ib: Interpretable[EitherK[B, C, ?], IO]) =
-    new Interpretable[EitherK[A, EitherK[B, C, ?], ?], IO] {
+  implicit def compile3[A[_], B[_], C[_]](implicit
+                                          ia: Lazy[Compiler[A, IO]],
+                                          ib: Compiler[EitherK[B, C, ?], IO]) =
+    new Compiler[EitherK[A, EitherK[B, C, ?], ?], IO] {
       type Env = ia.value.Env :: ib.Env
-      val interp =
+      val compile =
         Lambda[EitherK[A, EitherK[B, C, ?], ?] ~> Kleisli[IO, Env, ?]] {
           _.run match {
-            case Left(a)  => ia.value.interp(a).local(_.head)
-            case Right(b) => ib.interp(b).local(_.tail)
+            case Left(a)  => ia.value.compile(a).local(_.head)
+            case Right(b) => ib.compile(b).local(_.tail)
           }
         }
     }
@@ -65,9 +63,9 @@ object Interpretable extends GenericInterpreter {
 trait GenericInterpreter extends LowPriorityInterpreter {
 
   implicit def canInterpHttp4sClient =
-    new Interpretable[Http4sClient[IO, ?], IO] {
+    new Compiler[Http4sClient[IO, ?], IO] {
       type Env = Client[IO] :: HNil
-      val interp = new (Http4sClient[IO, ?] ~> Kleisli[IO, Env, ?]) {
+      val compile = new (Http4sClient[IO, ?] ~> Kleisli[IO, Env, ?]) {
         def apply[A](a: Http4sClient[IO, A]) = {
           a match {
             case b @ Expect(request) =>
@@ -83,9 +81,9 @@ trait GenericInterpreter extends LowPriorityInterpreter {
   case class Context[A](value: A)
 
   implicit def doobieInterp2 =
-    new Interpretable[ConnectionIO, IO] {
+    new Compiler[ConnectionIO, IO] {
       type Env = Transactor[IO] :: HNil
-      val interp = new (ConnectionIO ~> Kleisli[IO, Env, ?]) {
+      val compile = new (ConnectionIO ~> Kleisli[IO, Env, ?]) {
         def apply[A](dbops: ConnectionIO[A]) =
           Kleisli { _ =>
             ???
@@ -93,9 +91,9 @@ trait GenericInterpreter extends LowPriorityInterpreter {
       }
     }
 
-  implicit val ioInterp2 = new Interpretable[IO, IO] {
+  implicit val ioInterp2 = new Compiler[IO, IO] {
     type Env = HNil
-    val interp = FunctionK.id[IO].liftK[Env]
+    val compile = FunctionK.id[IO].liftK[Env]
   }
   import doobie.implicits._
 
@@ -104,15 +102,15 @@ trait GenericInterpreter extends LowPriorityInterpreter {
   case class AA[T](a: T)
   case class BB[T](b: T)
 
-  implicit val canInterpA = new Interpretable[AA, cats.effect.IO] {
+  implicit val canInterpA = new Compiler[AA, cats.effect.IO] {
     type Env = Int :: HNil
-    val interp = Lambda[AA ~> Kleisli[IO, Env, ?]] {
+    val compile = Lambda[AA ~> Kleisli[IO, Env, ?]] {
       case AA(a) => Kleisli(_ => IO(a))
     }
   }
-  implicit val canInterpB = new Interpretable[BB, cats.effect.IO] {
+  implicit val canInterpB = new Compiler[BB, cats.effect.IO] {
     type Env = String :: HNil
-    val interp = Lambda[BB ~> Kleisli[IO, Env, ?]] {
+    val compile = Lambda[BB ~> Kleisli[IO, Env, ?]] {
       case BB(b) => Kleisli(_ => IO(b))
     }
   }
@@ -171,17 +169,17 @@ object debug extends DebugInterp
 
 private trait ShapeLess extends GenericInterpreter {
   val app = EitherK.rightc[AA, BB, String](BB("234"))
-  Interpretable(app)
+  Compiler(app)
     .run((1 :: "2" :: HNil).map(hoho))
 
-  Interpretable(
+  Compiler(
     EitherK.rightc[AA, EitherK[BB, IO, ?], String](
       EitherK.leftc[BB, IO, String](BB("12"))))
     .run((1 :: "2" :: Unit :: HNil).map(hoho))
 
   val iii = implicitly[
-    Interpretable[EitherK[AA, EitherK[BB, EitherK[IO, ConnectionIO, ?], ?], ?],
-                  IO]].interp(EitherK.rightc(EitherK.leftc(BB("12"))))
+    Compiler[EitherK[AA, EitherK[BB, EitherK[IO, ConnectionIO, ?], ?], ?], IO]]
+    .compile(EitherK.rightc(EitherK.leftc(BB("12"))))
 
   // implicitly[Interpretable.Aux[EitherK[BB, EitherK[IO, ConnectionIO, ?], ?],
   //                              IO,
@@ -210,15 +208,15 @@ private trait ShapeLess extends GenericInterpreter {
   //   .interp(EitherK.rightc(EitherK.leftc(BB("12"))))
   //   .run(hhhh)
 
-  Interpretable(EitherK.rightc[Http4sClient[IO, ?], BB, String](BB("234")))
+  Compiler(EitherK.rightc[Http4sClient[IO, ?], BB, String](BB("234")))
     .run(((null: Client[IO]) :: "2" :: HNil).map(hoho))
 
-  canInterp2[ConnectionIO, Http4sClient[IO, ?]]
-    .interp(EitherK.leftc(a))
+  compile2[ConnectionIO, Http4sClient[IO, ?]]
+    .compile(EitherK.leftc(a))
     .run(((null: Transactor[IO]) :: (null: Client[IO]) :: HNil).map(hoho))
 
-  canInterp2[Http4sClient[IO, ?], IO]
-    .interp(EitherK.rightc[Http4sClient[IO, ?], IO, Boolean](IO(true)))
+  compile2[Http4sClient[IO, ?], IO]
+    .compile(EitherK.rightc[Http4sClient[IO, ?], IO, Boolean](IO(true)))
 }
 private trait Test {
   import effects._
