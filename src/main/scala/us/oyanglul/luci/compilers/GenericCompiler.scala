@@ -4,11 +4,7 @@ package compilers
 import cats.{Monad, ~>}
 import cats.data.{EitherK, Kleisli}
 import cats.free.Free
-import doobie.util.transactor.Transactor
-import org.http4s.client.Client
 import shapeless._
-import cats.mtl.{FunctorTell, MonadState}
-import effects._
 
 trait CoflattenLowPriority extends Poly1 {
   implicit def anyCase[A]: Case.Aux[A, A :: HNil] = {
@@ -72,36 +68,4 @@ trait GenericCompiler[E[_]] extends LowPriorityGenericCompiler[E] {
           }
         }
     }
-}
-
-private trait ShapeLessTest {
-  import io._
-  import doobie.free.connection.ConnectionIO
-  import cats.data._
-  import cats.effect.IO
-  case class Config()
-
-  type Program[A] = Eff6[
-    Http4sClient[IO, ?],
-    WriterT[IO, Chain[String], ?],
-    ReaderT[IO, Config, ?],
-    IO,
-    ConnectionIO,
-    StateT[IO, Int, ?],
-    A
-  ]
-
-  val app = cats.free.Free.liftInject[Program](IO("hehe"))
-  type ProgramBin[A] = Kleisli[
-    IO,
-    (Client[cats.effect.IO] :: HNil) :: (FunctorTell[IO, Chain[String]] :: HNil) ::
-      (Config :: HNil) :: HNil :: (Transactor[IO] :: HNil) :: (MonadState[
-      IO,
-      Int] :: HNil) :: HNil,
-    A]
-  val bin = compile(app)
-
-  bin.run(
-    ((null: Client[IO]) :: (null: FunctorTell[IO, Chain[String]]) :: Config() :: Unit :: (null: Transactor[
-      IO]) :: (null: MonadState[IO, Int]) :: HNil).map(coflatten))
 }
