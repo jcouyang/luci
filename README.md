@@ -18,14 +18,15 @@ for instance, we have two effects IO and StateT, and we would like to do some ma
 
 Here is the Program
 ```scala
+import Free.{liftInject => free}
 type Program[A] = EitherK[IO, StateT[IO, Int, ?], A]
 type ProgramF[A] = Free[Program, A]
 
 def program : Program[Int] = for {
-  initState <- liftInject[Program](StateT.get[IO, Int])
-  _ <- liftInject[Program](IO(println(s"init state is $initState")))
-  _ <- liftInject[Program](StateT.modify[IO, Int](_ + 1))
-  res <- liftInject[Program](StateT.modify[IO, Int](_ + 1))
+  initState <- free[Program](StateT.get[IO, Int])
+  _ <- free[Program](IO(println(s"init state is $initState")))
+  _ <- free[Program](StateT.modify[IO, Int](_ + 1))
+  res <- free[Program](StateT.modify[IO, Int](_ + 1))
 } yield res
 ```
 
@@ -55,23 +56,23 @@ But with FreeT:
 
 is using both [meow-mtl](https://github.com/oleg-py/meow-mtl) and ReaderT/Kleisli, then we can easily integrate mtl into Free Monad Effects
 
-- interpreter will have type of `Program ~> Kleisli[IO, ProgramContext, ?]` instead of just `Program ~> IO`
-- stateful effects can be injected into program when actually running `Kleisli[IO, ProgramContext, ?]`
+1. instead of using interpreter `Program ~> IO`, we can use `Program ~> Kleisli[IO, ProgramContext, ?]`, and we have a better name for it - *Compiler*
+2. init state of stateful effects can then be injected into program via ProgramContext when actually running `Kleisli[IO, ProgramContext, ?]`
 
 ### we have some Effects out of the box
 - WriterT
 - ReaderT/Kleisli
 - StateT
-- EitherT
+- Either
 - Http4sClient
 - Doobie ConnectionIO
-- IO
+- Id
 
-It's very similar but just one more step to run the kleisli
+It's very similar but just one more step to run the Kleisli
 
 1. create Program dsl
-2. compile Program into a Kleisli
-3. run Kleisli in a context
+2. **compile** Program into a Kleisli
+3. **run** Kleisli in a context
 
 
 ### Step 1: Create DSL
@@ -80,13 +81,14 @@ e.g. our `Program` has lot of effects... WriterT, Http4sClient, ReaderT, IO, Sta
 
 few of them need to be stateful across all over the program like WriterT, StateT
 ```scala
-type Program[A] = Eff6[
+ type Program[A] = Eff7[
       Http4sClient[IO, ?],
       WriterT[IO, Chain[String], ?],
       ReaderT[IO, Config, ?],
       IO,
       ConnectionIO,
       StateT[IO, Int, ?],
+      Either[Throwable, ?],
       A
     ]
 type ProgramF[A] = Free[Program, A]
@@ -97,36 +99,27 @@ type ProgramF[A] = Free[Program, A]
 Now lets start using these effects to do our work
 ```scala
 val program = for {
-    config <- liftInject[Program](Kleisli.ask[IO, Config])
-    state <- liftInject[Program](StateT.get[IO, Int])
-    _ <- liftInject[Program](StateT.modify[IO, Int](1 + _))
-    _ <- liftInject[Program](
-      WriterT.tell[IO, Chain[String]](
-        Chain.one("config: " + config.environment)))
-    _ <- liftInject[Program](for {
-       _ <- sql"""insert into test values (4)""".update.run
-       _ <- sql"""insert into test values (5)""".update.run
-      } yield ())
-    _ <- liftInject[Program](
-      IO(println(s"im IO...state: $state")))
-    res <- liftInject[Program](Ok("live"))
-  } yield res
+    config <- free[Program](Kleisli.ask[IO, Config])
+    _ <- free[Program](
+    GetStatus[IO](GET(Uri.uri("https://blog.oyanglul.us"))))
+    _ <- free[Program](StateT.modify[IO, Int](1 + _))
+    _ <- free[Program](StateT.modify[IO, Int](1 + _))
+    state <- free[Program](StateT.get[IO, Int])
+    _ <- free[Program](
+    WriterT.tell[IO, Chain[String]](
+      Chain.one("config: " + config.token)))
+    resOrError <- free[Program](sql"""select true""".query[Boolean].unique)
+    _ <- free[Program](
+    resOrError.handleError(e => println(s"handle db error $e")))
+    _ <- free[Program](IO(println(s"im IO...state: $state")))
+} yield ()
 ```
 
 ### Step 2: Compile the Program
 if we compile our program, we should get a binary `ProgramBin`
 ```scala
-trait ProgramContext
-	extends WriterTEnv[IO, Chain[String]]
-	with StateTEnv[IO, Int]
-	with HttpClientEnv[IO]
-	with DoobieEnv[IO]
-	with ProgramEnv
-
-import us.oyanglul.interpreters.all._ // import all our predefined effect interpreters
-import us.oyanglul.interpreters.generic._ // so we can infer the correct interpreters to use base on your `Program` type
-type ProgramBin[A] = Kleisli[IO, ProgramContext, A]
-val binary = program foldMap implicitly[Program ~> ProgramBin]
+import us.oyanglul.luci.compilers.io._
+val binary = compile(program)
 ```
 imagine that you have a binary of command line tool, when you run it you would probably need to provide some `--args`
 
@@ -136,44 +129,28 @@ same here, if you want to run `ProgramBin`, which is basically just a Kleisli, w
 
 run the program with real `--args`
 ```scala
-binary.run(new ProgramContext {
-  val enviroment = "production"
-  val stateT = stateRef.stateInstance
-  val writerT = logRef.tellInstance
-  val http4sClient = http4sBlazeClient
-  val doobieTransactor = transactor
-})
+val args = (httpclient ::
+    logRef.tellInstance ::
+    config ::
+    Unit ::
+    transactor ::
+    stateRef.stateInstance ::
+    Unit ::
+    HNil).map(coflatten)
+
+binary.run(args)
 ```
 
 for stateful `WriterT` and `StateT` here, we can get `FunctorTell` and `MonadState` instances from `Ref[IO, ?]`
 and inject them into program via `ProgramContext`
 
-- `stateRef` is `Ref[IO, Int]`
-- `logRef` is `Ref[IO, Chain[String]]`
+each one corespond to program's effect's context
 
-## Implicit Debug
-The generic interpreter is very convenient that you don't have to write interpreters like
-```scala
-val interpreter: Program ~> ProgramBin = writerTInterp or (stateTInterp or (http4sClientInterp or (ioInterp ...)))
-```
+1. binary for `Http4sClient[IO, ?]` needs `Client[IO]` to run
+2. binary for `WriterT[IO, Chain[String], ?]` needs `FuntorTell[IO, Chain[String]]`, presented by meow-mtl `.tellInstance`
+3. binary for `ReaderT[IO, Config, ?]` needs `Config` to run
+4. binary for `IO` needs nothing so `Unit`
+5. binary for `ConnectionIO` needs `Transactor[IO]`
+6. binary for `StateT[IO, Int, ?]` needs `MonadState[IO, Int]` to run, which presented here by meow-mtl from `.stateInstance`
+7. binary for `Either[Throwable, ?]` needs nothing so `Unit`
 
-you can simply just
-```scala
-import us.oyanglul.luci.interpreters.generic._
-implicitly[Program ~> ProgramBin]
-```
-
-However, the problem of letting compiler to implicitly find correct interpreter for you may sometimes fail and hard to debug
-
-in this case, you can use `us.oyanglul.luci.interpreters.debug`
-
-```scala
-import us.oyanglul.luci.interpreters.debug._
-
-implicitly[CanInterp[WriterT[IO, Chain[String], ?], IO, ProgramContext]]
-implicitly[CanInterp[ReaderT[IO, Config, ?], IO, ProgramContext]]
-implicitly[CanInterp[Http4sClient[IO, ?], IO, ProgramContext]]
-implicitly[CanInterp[ConnectionIO, IO, ProgramContext]]
-```
-
-to find out which effect's interpreter that the compiler has problem with

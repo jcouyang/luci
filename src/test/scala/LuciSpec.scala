@@ -25,7 +25,7 @@ import org.http4s.client.dsl.io._
 
 import scala.concurrent.ExecutionContext
 import compilers.io._
-import Free.{liftInject => as}
+import Free.{liftInject => free}
 import shapeless._
 import compilers.coflatten
 import cats.instances.either._
@@ -72,19 +72,19 @@ class LuciSpec extends Specification with DatabaseResource {
       val ping = freeRoute[IO, Program] {
         case _ @GET -> Root =>
           for {
-            config <- as[Program](Kleisli.ask[IO, Config])
-            state1 <- as[Program](StateT.get[IO, Int])
-            _ <- as[Program](
+            config <- free[Program](Kleisli.ask[IO, Config])
+            state1 <- free[Program](StateT.get[IO, Int])
+            _ <- free[Program](
               GetStatus[IO](GET(Uri.uri("https://blog.oyanglul.us"))))
-            _ <- as[Program](StateT.modify[IO, Int](1 + _))
-            _ <- as[Program](
+            _ <- free[Program](StateT.modify[IO, Int](1 + _))
+            _ <- free[Program](
               WriterT.tell[IO, Chain[String]](
                 Chain.one("config: " + config.token)))
-            resOrError <- as[Program](dbOps.attempt)
-            _ <- as[Program](
+            resOrError <- free[Program](dbOps.attempt)
+            _ <- free[Program](
               resOrError.handleError(e => println(s"handle db error $e")))
-            _ <- as[Program](IO(println(s"im IO...state: $state1")))
-            res <- as[Program](Ok("live"))
+            _ <- free[Program](IO(println(s"im IO...state: $state1")))
+            res <- free[Program](Ok("live"))
           } yield res
       }
       ping.map(runProgram)
