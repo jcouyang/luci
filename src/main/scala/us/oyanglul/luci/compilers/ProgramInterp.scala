@@ -47,7 +47,6 @@ trait LowPriorityGenericCompiler[E[_]] {
       }
     }
 }
-object Compiler extends GenericCompiler[IO]
 
 trait GenericCompiler[E[_]] extends LowPriorityGenericCompiler[E] {
   def compile[F1[_], F2[_], F3[_], A, Eff[A] <: EitherK[F2, F3, A]](
@@ -73,7 +72,6 @@ trait GenericCompiler[E[_]] extends LowPriorityGenericCompiler[E] {
 }
 
 private trait ShapeLessTest extends All[IO] {
-  import Compiler._
   import doobie.free.connection.ConnectionIO
   import cats.data._
   import cats.effect.IO
@@ -98,16 +96,15 @@ private trait ShapeLessTest extends All[IO] {
       Int] :: HNil) :: HNil,
     A]
   app
-    .foldMap(Lambda[Program ~> ProgramBin](Compiler.compile(_)))
+    .foldMap(Lambda[Program ~> ProgramBin](compile(_)))
     .run(
       ((null: Client[IO]) :: (null: FunctorTell[IO, Chain[String]]) :: Config() :: Unit :: (null: Transactor[
         IO]) :: (null: MonadState[IO, Int]) :: HNil)
         .map(coflatten))
 
-  Compiler
-    .compile(
-      EitherK.rightc[Http4sClient[IO, ?], EitherK[ConnectionIO, IO, ?], String](
-        EitherK.rightc[ConnectionIO, IO, String](IO("12"))))
+  compile(
+    EitherK.rightc[Http4sClient[IO, ?], EitherK[ConnectionIO, IO, ?], String](
+      EitherK.rightc[ConnectionIO, IO, String](IO("12"))))
     .run(((null: Client[IO]) :: (null: Transactor[IO]) :: Unit :: HNil)
       .map(coflatten))
 
