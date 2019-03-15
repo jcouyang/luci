@@ -80,7 +80,7 @@ private trait ShapeLessTest {
   type Program[A] = Eff6[
     Http4sClient[IO, ?],
     WriterT[IO, Chain[String], ?],
-    ReaderT[IO, Config :: HNil, ?],
+    ReaderT[IO, Config, ?],
     IO,
     ConnectionIO,
     StateT[IO, Int, ?],
