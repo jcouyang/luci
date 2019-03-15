@@ -1,8 +1,9 @@
 package us.oyanglul.luci
 package compilers
 
-import cats.~>
+import cats.{Monad, ~>}
 import cats.data.{EitherK, Kleisli}
+import cats.free.Free
 import doobie.util.transactor.Transactor
 import org.http4s.client.Client
 import shapeless._
@@ -29,10 +30,12 @@ trait Compiler[F[_], E[_]] {
 }
 
 trait LowPriorityGenericCompiler[E[_]] {
-  def compile[F1[_], F2[_], A](eff: EitherK[F1, F2, A])(implicit
-                                                        ev1: Compiler[F1, E],
-                                                        ev2: Compiler[F2, E]) =
-    compile2[F1, F2].compile(eff)
+  def compile[F1[_], F2[_], A](prg: Free[EitherK[F1, F2, ?], A])(
+      implicit
+      ev0: Monad[E],
+      ev1: Compiler[F1, E],
+      ev2: Compiler[F2, E]) =
+    prg.foldMap(compile2[F1, F2].compile)
 
   implicit def compile2[A[_], B[_]](implicit ia: Compiler[A, E],
                                     ib: Compiler[B, E]) =
@@ -49,11 +52,12 @@ trait LowPriorityGenericCompiler[E[_]] {
 
 trait GenericCompiler[E[_]] extends LowPriorityGenericCompiler[E] {
   def compile[F1[_], F2[_], F3[_], A, Eff[A] <: EitherK[F2, F3, A]](
-      eff: EitherK[F1, EitherK[F2, F3, ?], A])(
+      prg: Free[EitherK[F1, EitherK[F2, F3, ?], ?], A])(
       implicit
+      ev0: Monad[E],
       ev1: Lazy[Compiler[F1, E]],
       ev2: Compiler[EitherK[F2, F3, ?], E]) =
-    compileN[F1, F2, F3].compile(eff)
+    prg.foldMap(compileN[F1, F2, F3].compile)
 
   implicit def compileN[A[_], B[_], C[_]](implicit
                                           ia: Lazy[Compiler[A, E]],
@@ -95,17 +99,22 @@ private trait ShapeLessTest {
       IO,
       Int] :: HNil) :: HNil,
     A]
-  app
-    .foldMap(Lambda[Program ~> ProgramBin](compile(_)))
-    .run(
-      ((null: Client[IO]) :: (null: FunctorTell[IO, Chain[String]]) :: Config() :: Unit :: (null: Transactor[
-        IO]) :: (null: MonadState[IO, Int]) :: HNil)
-        .map(coflatten))
+  val bin = compile(app)
 
-  compile(
-    EitherK.rightc[Http4sClient[IO, ?], EitherK[ConnectionIO, IO, ?], String](
-      EitherK.rightc[ConnectionIO, IO, String](IO("12"))))
-    .run(((null: Client[IO]) :: (null: Transactor[IO]) :: Unit :: HNil)
-      .map(coflatten))
+  bin.run(
+    ((null: Client[IO]) :: (null: FunctorTell[IO, Chain[String]]) :: Config() :: Unit :: (null: Transactor[
+      IO]) :: (null: MonadState[IO, Int]) :: HNil).map(coflatten))
+//  app
+//    .foldMap(Lambda[Program ~> ProgramBin](compile(_)))
+//    .run(
+//      ((null: Client[IO]) :: (null: FunctorTell[IO, Chain[String]]) :: Config() :: Unit :: (null: Transactor[
+//        IO]) :: (null: MonadState[IO, Int]) :: HNil)
+//        .map(coflatten))
+//
+//  compile(
+//    EitherK.rightc[Http4sClient[IO, ?], EitherK[ConnectionIO, IO, ?], String](
+//      EitherK.rightc[ConnectionIO, IO, String](IO("12"))))
+//    .run(((null: Client[IO]) :: (null: Transactor[IO]) :: Unit :: HNil)
+//      .map(coflatten))
 
 }

@@ -1,6 +1,5 @@
 package us.oyanglul.luci
 
-import cats.~>
 import cats.Monad
 import cats.data._
 import cats.effect.concurrent.Ref
@@ -27,7 +26,6 @@ import org.http4s.client.dsl.io._
 import scala.concurrent.ExecutionContext
 import compilers.io._
 import Free.liftInject
-import cats.mtl.{FunctorTell, MonadState}
 import shapeless._
 import compilers.coflatten
 
@@ -49,7 +47,7 @@ class LuciSpec extends Specification with DatabaseResource {
     type Program[A] = Eff6[
       Http4sClient[IO, ?],
       WriterT[IO, Chain[String], ?],
-      ReaderT[IO, Config :: HNil, ?],
+      ReaderT[IO, Config, ?],
       IO,
       ConnectionIO,
       StateT[IO, Int, ?],
@@ -72,12 +70,12 @@ class LuciSpec extends Specification with DatabaseResource {
       val ping = freeRoute[IO, Program] {
         case _ @GET -> Root =>
           for {
-            config <- liftInject[Program](Kleisli.ask[IO, Config :: HNil])
+            config <- liftInject[Program](Kleisli.ask[IO, Config])
             state1 <- liftInject[Program](StateT.get[IO, Int])
             _ <- liftInject[Program](StateT.modify[IO, Int](1 + _))
             _ <- liftInject[Program](
               WriterT.tell[IO, Chain[String]](
-                Chain.one("config: " + config.head.token)))
+                Chain.one("config: " + config.token)))
             _ <- liftInject[Program](dbOps.attempt)
 //            _ <- liftInject[Program](
 //              resOrError.handleError(e => println(s"handle db error $e")))
@@ -90,15 +88,6 @@ class LuciSpec extends Specification with DatabaseResource {
 
     def runProgram[A](program: ProgramF[A])(implicit
                                             ctx: AppContext) = {
-      type ProgramBin[B] =
-        Kleisli[IO,
-                (Client[cats.effect.IO] :: HNil) :: (FunctorTell[
-                  IO,
-                  Chain[String]] :: HNil) ::
-                  (Config :: HNil) :: HNil :: (Transactor[IO] :: HNil) :: (MonadState[
-                  IO,
-                  Int] :: HNil) :: HNil,
-                B]
       programResource(Ref[IO].of(1), Config("im config").asRight[Throwable])
         .use {
           case (logEff, config, stateEff) =>
@@ -106,8 +95,7 @@ class LuciSpec extends Specification with DatabaseResource {
               (ctx.http :: logEff.tellInstance :: config :: Unit :: ctx.transactor :: stateEff.stateInstance :: HNil)
                 .map(coflatten)
 
-            val binary = program foldMap Lambda[Program ~> ProgramBin](
-              compile(_))
+            val binary = compile(program)
             binary.run(args)
 
         } unsafeRunSync ()
