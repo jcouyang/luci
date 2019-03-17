@@ -1,4 +1,4 @@
-<h1><ruby><rb>鸕鶿</rb><rt>lu ci</rt></ruby></h1>
+# <ruby><rb>鸕鶿</rb><rt>lu ci</rt></ruby>
 
 Extensible Free Monad Effects
 
@@ -10,6 +10,23 @@ Extensible Free Monad Effects
 ```
 libraryDependencies += "us.oyanglul" %% "luci" % <version>"
 ```
+
+<!-- markdown-toc start - Don't edit this section. Run M-x markdown-toc-generate-toc again -->
+**Table of Contents**
+
+- [<ruby><rb>鸕鶿</rb><rt>lu ci</rt></ruby>](#rubyrb鸕鶿rbrtlu-cirtruby)
+    - [The Problem](#the-problem)
+    - [The Ultimate Solution](#the-ultimate-solution)
+        - [Some Effects out of the box](#some-effects-out-of-the-box)
+        - [Step 1: Create DSL](#step-1-create-dsl)
+        - [Step 2: Compile the Program](#step-2-compile-the-program)
+        - [Step 3: Run Program](#step-3-run-program)
+    - [Create Your Own Effect](#create-your-own-effect)
+        - [Step 1: Create Data Type](#step-1-create-data-type)
+        - [Step 2: Create Compiler](#step-2-create-compiler)
+        - [Step 3 Use the effect](#step-3-use-the-effect)
+
+<!-- markdown-toc end -->
 
 ## The Problem
 When you want to mix in some native effects into your Free Monad DSL, some effects won't work
@@ -59,7 +76,7 @@ is using both [meow-mtl](https://github.com/oleg-py/meow-mtl) and ReaderT/Kleisl
 1. instead of using interpreter `Program ~> IO`, we can use `Program ~> Kleisli[IO, ProgramContext, ?]`, and we have a better name for it - *Compiler*
 2. init state of stateful effects can then be injected into program via ProgramContext when actually running `Kleisli[IO, ProgramContext, ?]`
 
-### we have some Effects out of the box
+### Some Effects out of the box
 - WriterT
 - ReaderT/Kleisli
 - StateT
@@ -154,3 +171,74 @@ each one corespond to program's effect's context
 6. binary for `StateT[IO, Int, ?]` needs `MonadState[IO, Int]` to run, which presented here by meow-mtl from `.stateInstance`
 7. binary for `Either[Throwable, ?]` needs nothing so `Unit`
 
+## Create Your Own Effect
+
+creating an new compilable effect is pretty simple in 2 steps
+
+### Step 1: Create Data Type
+This is nothing different from creating a effect data type for Free Monad
+
+For instance we need a `s3 putObject` Effect
+
+```scala
+
+import com.amazonaws.services.s3.model.PutObjectResult
+
+sealed trait S3[A]
+
+case class PutObject(bucketName: String, fileName: String, content: String)
+    extends S3[PutObjectResult]
+```
+
+### Step 2: Create Compiler
+
+To create a compiler for new data type s3, we'll need to create instance for type class Compiler
+```scala
+trait Compiler[F[_], E[_]] {
+  type Env <: HList
+  val compile: F ~> Kleisli[E, Env, ?]
+}
+```
+
+We need a type of `Env` where the program needs to be compile. e.g. S3 need a AWS S3 Client
+
+```scala
+trait S3Compiler[E[_]] {
+  implicit def s3Compiler(implicit F: Applicative[E]) = new Compiler[S3, E] {
+    type Env = AmazonS3 :: HNil
+    val compile = Lambda[S3 ~> Kleisli[E, Env, ?]] (_ match {
+      case PutObject(bucketName, fileName, content) =>
+        Kleisli(env => F.pure(env.head.putObject(bucketName, fileName, content)))
+    })
+  }
+}
+```
+
+There were few point to be noted here:
+
+1. be mindful that the `Env` needs to be a shapeless `HList`, thus, here it's `AmazonS3 :: HNil` not `AmazonS3`
+2. the compiler is generic on `E[_]`, but with restriction that E has to have instance for `Applicative` so we can use `.pure`
+3. Kleisli will get env of type `AmazonS3 :: HNil`, it's just like list but more acurate on it's content, you can get `head` safely since we know that there must be an item of type `AmazonS3` in head.
+
+### Step 3 Use the effect
+
+to be honest you don't need to make S3Compiler so generic since you may be the only person who using it. But it's a good practic to make every thing as genric as possible.
+
+any way to use the generic effect, you can create a specific object just for IO(or Task of your choice)
+```scala
+object s3IoCompiler extends S3Compiler[IO]
+```
+
+and then import it to where you need to compile
+```scala
+import s3IoCompiler._
+```
+
+Or, simply extends it on the object or class you intent to compile your program
+```scala
+object Main extends S3Compiler[IO] with All{
+  ...
+  val binary = compile(program)
+  ...
+}
+```
