@@ -12,7 +12,7 @@ trait DoobieCompiler[E[_]] {
   implicit def doobieInterp2(implicit ev: Monad[E]) =
     new Compiler[ConnectionIO, E] {
       type Env = Transactor[E] :: HNil
-      val compile = new (ConnectionIO ~> Kleisli[E, Env, ?]) {
+      val compile = new (ConnectionIO ~> Bin) {
         def apply[A](dbops: ConnectionIO[A]) =
           Kleisli { _.head.trans.apply(dbops) }
       }

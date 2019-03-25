@@ -10,7 +10,7 @@ trait Http4sClientCompiler[E[_]] {
   implicit def http4sClientCompiler =
     new Compiler[Http4sClient[E, ?], E] {
       type Env = Client[E] :: HNil
-      val compile = new (Http4sClient[E, ?] ~> Kleisli[E, Env, ?]) {
+      val compile = new (Http4sClient[E, ?] ~> Bin) {
         def apply[A](a: Http4sClient[E, A]) = {
           a match {
             case b @ Expect(request) =>

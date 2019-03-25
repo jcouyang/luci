@@ -22,7 +22,8 @@ object coflatten extends CoflattenLowPriority {
 
 trait Compiler[F[_], E[_]] {
   type Env <: HList
-  val compile: F ~> Kleisli[E, Env, ?]
+  type Bin[A] = Kleisli[E, Env, A]
+  val compile: F ~> Bin
 }
 
 trait LowPriorityGenericCompiler[E[_]] {
