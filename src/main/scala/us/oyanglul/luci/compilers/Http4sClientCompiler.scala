@@ -13,11 +13,15 @@ trait Http4sClientCompiler[E[_]] {
       val compile = new (Http4sClient[E, ?] ~> Bin) {
         def apply[A](a: Http4sClient[E, A]) = {
           a match {
-            case b @ Expect(request) =>
-              implicit val d = b.decoder
+            case client @ Expect(request) =>
+              implicit val d = client.decoder
               Kleisli(_.head.expect[A](request))
-            case c: GetStatus[E] =>
-              Kleisli(_.head.status(c.req))
+            case client @ ExpectOr(request, onError) => {
+              implicit val d = client.decoder
+              Kleisli(_.head.expectOr[A](request)(onError))
+            }
+            case client: GetStatus[E] =>
+              Kleisli(_.head.status(client.req))
           }
         }
       }
