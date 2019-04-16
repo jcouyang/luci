@@ -5,9 +5,12 @@ import effects._
 import cats._
 import org.http4s.client.{Client}
 import shapeless._
+import cats.MonadError
+import cats.syntax.applicativeError._
+import org.http4s.Status
 
 trait Http4sClientCompiler[E[_]] {
-  implicit def http4sClientCompiler =
+  implicit def http4sClientCompiler(implicit M: MonadError[E, Throwable]) =
     new Compiler[Http4sClient[E, ?], E] {
       type Env = Client[E] :: HNil
       val compile = new (Http4sClient[E, ?] ~> Bin) {
@@ -21,7 +24,8 @@ trait Http4sClientCompiler[E[_]] {
               Kleisli(_.head.expectOr[A](request)(onError))
             }
             case client: GetStatus[E] =>
-              Kleisli(_.head.status(client.req))
+              Kleisli((env: Env) => env.head.status(client.req))
+                .handleError(_ => Status.ServiceUnavailable)
           }
         }
       }
