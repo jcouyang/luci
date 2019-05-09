@@ -1,6 +1,6 @@
 import scala.util.Properties._
 
-val Http4sVersion = "0.20.0-M4"
+val Http4sVersion = "0.20.0"
 val Specs2Version = "4.3.4"
 val DoobieVersion = "0.6.0"
 val CatsVersion = "1.6.0"

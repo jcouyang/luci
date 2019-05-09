@@ -8,7 +8,6 @@ import doobie.util.ExecutionContexts
 
 import scala.util.Properties._
 import scala.util.Try
-import cats.syntax.all._
 
 trait DatabaseResource {
   lazy val DB_HOST = envOrElse("DB_HOST", "localhost")
