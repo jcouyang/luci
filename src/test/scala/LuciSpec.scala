@@ -74,7 +74,10 @@ class LuciSpec extends Specification with DatabaseResource {
           for {
             config <- free[Program](Kleisli.ask[IO, Config])
             _ <- free[Program](
-              GetStatus[IO](GET(Uri.uri("https://blog.oyanglul.us"))))
+              Par(
+                GetStatus[IO](GET(Uri.uri("https://mockbin.org/delay/10000"))),
+                GetStatus[IO](GET(Uri.uri("https://mockbin.org/delay/10000")))
+              ): Http4sClient[IO, (Status, Status)])
             _ <- free[Program](State.modify[Int](1 + _))
             _ <- free[Program](State.modify[Int](1 + _))
             _ <- free[Program](

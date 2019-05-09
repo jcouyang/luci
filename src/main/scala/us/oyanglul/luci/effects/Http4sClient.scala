@@ -17,3 +17,6 @@ case class ExpectOr[E[_], A](
     extends Http4sClient[E, A] {
   val decoder = d
 }
+
+case class Par[E[_], A, B](a: Http4sClient[E, A], b: Http4sClient[E, B])
+    extends Http4sClient[E, (A, B)]
