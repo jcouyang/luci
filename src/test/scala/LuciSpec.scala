@@ -4,7 +4,7 @@ import cats.Monad
 import cats.data._
 import cats.effect.concurrent.Ref
 import cats.effect.{IO, Resource}
-import cats.free.Free
+import cats.free.{Free, FreeApplicative}
 import cats.syntax.all._
 import doobie.free.connection.ConnectionIO
 import effects._
@@ -45,7 +45,7 @@ class LuciSpec extends Specification with DatabaseResource {
     "Given you have define all types for your program".p.tab
 
     case class AppContext(transactor: Transactor[IO], http: Client[IO])
-    type Program[A] = Eff7[
+    type ProgramBase[A] = Eff7[
       Http4sClient[IO, ?],
       Writer[Chain[String], ?],
       ReaderT[IO, Config, ?],
@@ -56,6 +56,7 @@ class LuciSpec extends Specification with DatabaseResource {
       A
     ]
 
+    type Program[A] = Eff2[FreeApplicative[ProgramBase, ?], ProgramBase, A]
     type ProgramF[A] = Free[Program, A]
 
     case class ProgramState(someState: String)
@@ -98,9 +99,10 @@ class LuciSpec extends Specification with DatabaseResource {
       programResource(Ref[IO].of(1), Config("im config").asRight[Throwable])
         .use {
           case (logEff, config, stateEff) =>
-            val args =
+            val baseArgs =
               (ctx.http :: logEff.tellInstance :: config :: Unit :: ctx.transactor :: stateEff.stateInstance :: Unit :: HNil)
                 .map(coflatten)
+            val args = (baseArgs :: baseArgs)
 
             val binary = compile(program)
             binary.run(args)
