@@ -1,6 +1,7 @@
 version: 2.1
+description: Scala sbt pipeline
 orbs:
-    sbt: jcouyang/sbt@0.1.0
+  sbt: jcouyang/sbt@0.1.1
 workflows:
   version: 2
   test:
