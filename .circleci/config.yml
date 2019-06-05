@@ -14,9 +14,9 @@ workflows:
               only: /^v[0-9.]+.*/
             branches:
               ignore: /.*/
-      - sbt/deploy:
+      - sbt/release:
           requires:
-            - test
+            - sbt/test
           filters:
             tags:
               only: /^v[0-9.]+.*/
