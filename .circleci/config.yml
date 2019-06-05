@@ -16,6 +16,7 @@ workflows:
   release:
     jobs:
       - sbt/test:
+          executor: scala-db
           filters:
             tags:
               only: /^v[0-9.]+.*/
