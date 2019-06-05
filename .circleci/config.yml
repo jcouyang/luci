@@ -1,12 +1,18 @@
 version: 2.1
 description: Scala sbt pipeline
 orbs:
-  sbt: jcouyang/sbt@0.1.1
+  sbt: jcouyang/sbt@dev:0.2.0
+executors:
+  scala-db:
+    docker:
+      - image: circleci/openjdk:8-jdk
+      - image: circleci/postgres:9.6.5-alpine-ram
 workflows:
   version: 2
   test:
     jobs:
-      - sbt/test
+      - sbt/test:
+          executor: scala-db
   release:
     jobs:
       - sbt/test:
