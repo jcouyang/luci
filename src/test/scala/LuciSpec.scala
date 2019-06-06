@@ -28,7 +28,6 @@ import compilers.io._
 import Free.{liftInject => free}
 import shapeless._
 import compilers.coflatten
-import cats.instances.either._
 
 class LuciSpec extends Specification with DatabaseResource {
   implicit val cs = IO.contextShift(ExecutionContext.global)
@@ -52,7 +51,7 @@ class LuciSpec extends Specification with DatabaseResource {
       IO,
       ConnectionIO,
       State[Int, ?],
-      Either[Throwable, ?],
+      EitherT[IO, Throwable, ?],
       A
     ]
 
@@ -83,8 +82,7 @@ class LuciSpec extends Specification with DatabaseResource {
             _ <- free[Program](
               Writer.tell[Chain[String]](Chain.one("config: " + config.token)))
             resOrError <- free[Program](dbOps.attempt)
-            _ <- free[Program](
-              resOrError.handleError(e => println(s"handle db error $e")))
+            _ <- free[Program](EitherT(IO(resOrError)))
             state <- free[Program](State.get[Int])
             _ <- free[Program](IO(println(s"im IO...state: $state")))
             res <- free[Program](Ok("live"))
