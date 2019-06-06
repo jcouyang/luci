@@ -44,12 +44,13 @@ class LuciSpec extends Specification with DatabaseResource {
     "Given you have define all types for your program".p.tab
 
     case class AppContext(transactor: Transactor[IO], http: Client[IO])
-    type Program[A] = Eff7[
+    type Program[A] = Eff8[
       Http4sClient[IO, ?],
       Writer[Chain[String], ?],
       ReaderT[IO, Config, ?],
       IO,
       ConnectionIO,
+      Rescue[Http4sClient[IO, ?], ?],
       State[Int, ?],
       EitherT[IO, Throwable, ?],
       A
