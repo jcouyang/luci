@@ -6,16 +6,15 @@ import cats.{MonadError, ~>}
 import effects._
 
 trait RescueCompiler[E[_]] {
-  type Out[FF[_], A] = FF[Either[Throwable, A]]
-  implicit def rescueCompiler[F[_]](implicit M: MonadError[E, Throwable],
-                                    _compiler: Compiler[F, E]) = {
-    new Compiler[Rescue[Out[F, ?], ?], Out[E, ?]] {
+  implicit def rescueCompiler[F[_], B](implicit M: MonadError[E, Throwable],
+                                       _compiler: Compiler[F, E]) = {
+    new Compiler[Rescue[F, ?], E] {
       type Env = _compiler.Env
-      val compile = new (Rescue[Out[F, ?], ?] ~> Bin) {
-        def apply[A](f: Rescue[Out[F, ?], A]): Kleisli[Out[E, ?], Env, A] = {
+      val compile = new (Rescue[F, ?] ~> Bin) {
+        def apply[A](f: Rescue[F, A]): Kleisli[E, Env, A] = {
           f match {
-            case Attempt(a) =>
-              _compiler.compile(a).mapF[Out[E, ?], A] { io =>
+            case b @ Attempt(a) =>
+              _compiler.compile(a).mapF[E, A] { (io: E[b.Aux]) =>
                 M.attempt(io)
               }
           }

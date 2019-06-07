@@ -44,13 +44,12 @@ class LuciSpec extends Specification with DatabaseResource {
     "Given you have define all types for your program".p.tab
 
     case class AppContext(transactor: Transactor[IO], http: Client[IO])
-    type Program[A] = Eff8[
-      Http4sClient[IO, ?],
+    type Program[A] = Eff7[
+      Rescue[Http4sClient[IO, ?], ?],
       Writer[Chain[String], ?],
       ReaderT[IO, Config, ?],
       IO,
       ConnectionIO,
-      Rescue[Http4sClient[IO, ?], ?],
       State[Int, ?],
       EitherT[IO, Throwable, ?],
       A
@@ -74,10 +73,11 @@ class LuciSpec extends Specification with DatabaseResource {
           for {
             config <- free[Program](Kleisli.ask[IO, Config])
             _ <- free[Program](
-              Par(
+              Attempt(Par(
                 GetStatus[IO](GET(Uri.uri("https://mockbin.org/delay/10000"))),
                 GetStatus[IO](GET(Uri.uri("https://mockbin.org/delay/10000")))
-              ): Http4sClient[IO, (Status, Status)])
+              )): Rescue[Http4sClient[IO, ?],
+                         Either[Throwable, (Status, Status)]])
             _ <- free[Program](State.modify[Int](1 + _))
             _ <- free[Program](State.modify[Int](1 + _))
             _ <- free[Program](
