@@ -14,9 +14,12 @@ trait RescueCompiler[E[_]] {
         def apply[A](f: Rescue[F, A]): Kleisli[E, Env, A] = {
           f match {
             case b @ Attempt(a) =>
-              _compiler.compile(a).mapF[E, A] { (io: E[b.Aux]) =>
-                M.attempt(io)
-              }
+              _compiler
+                .compile(a)
+                .mapF { (io: E[b.Aux]) =>
+                  M.attempt(io)
+                }
+                .map(identity[A])
           }
         }
       }

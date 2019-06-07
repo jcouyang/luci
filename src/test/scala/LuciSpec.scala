@@ -65,19 +65,23 @@ class LuciSpec extends Specification with DatabaseResource {
     def createApp(implicit ctx: AppContext) = {
       implicit val han = LogHandler.jdkLogHandler
       val dbOps = for {
-        _ <- sql"""insert into test values (4)""".update.run
-        _ <- sql"""insert into test values ('aaa1')""".update.run
+        _ <- sql"""select true""".query[Boolean].unique
+        // _ <- sql"""insert into test values ('aaa1')""".update.run
       } yield ()
       val ping = freeRoute[IO, Program] {
         case _ @GET -> Root =>
           for {
             config <- free[Program](Kleisli.ask[IO, Config])
-            _ <- free[Program](
-              Attempt(Par(
-                GetStatus[IO](GET(Uri.uri("https://mockbin.org/delay/10000"))),
-                GetStatus[IO](GET(Uri.uri("https://mockbin.org/delay/10000")))
-              )): Rescue[Http4sClient[IO, ?],
-                         Either[Throwable, (Status, Status)]])
+            // requests1: Http4sClient[IO, (Status, Status)] = Par(
+            //   GetStatus[IO](GET(Uri.uri("https://mockbin.org/delay/10000"))),
+            //   GetStatus[IO](GET(Uri.uri("https://mockbin.org/delay/10000")))
+            // )
+            request2: Http4sClient[IO, String] = Expect[IO, String](
+              GET(Uri.uri("http://localhost:8888")))
+            resp <- free[Program](
+              Attempt(request2): Rescue[Http4sClient[IO, ?],
+                                        Either[Throwable, String]])
+            _ <- free[Program](IO(println(s"Http4s...resp: $resp")))
             _ <- free[Program](State.modify[Int](1 + _))
             _ <- free[Program](State.modify[Int](1 + _))
             _ <- free[Program](
