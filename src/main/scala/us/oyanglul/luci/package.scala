@@ -3,7 +3,6 @@ package us.oyanglul
 import cats.data.EitherK
 
 package object luci {
-  type Out[FF[_], A] = FF[Either[Throwable, A]]
   type EffCons[F[_], Eff[_], A] = EitherK[F, Eff, A]
   type Eff2[F1[_], F2[_], A] = EitherK[F1, F2, A]
   type Eff3[F1[_], F2[_], F3[_], A] =
