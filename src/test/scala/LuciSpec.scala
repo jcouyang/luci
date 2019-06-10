@@ -28,7 +28,6 @@ import compilers.io._
 import Free.{liftInject => free}
 import shapeless._
 import compilers.coflatten
-import cats.instances.either._
 
 class LuciSpec extends Specification with DatabaseResource {
   implicit val cs = IO.contextShift(ExecutionContext.global)
@@ -46,13 +45,13 @@ class LuciSpec extends Specification with DatabaseResource {
 
     case class AppContext(transactor: Transactor[IO], http: Client[IO])
     type Program[A] = Eff7[
-      Http4sClient[IO, ?],
+      Rescue[Http4sClient[IO, ?], ?],
       Writer[Chain[String], ?],
       ReaderT[IO, Config, ?],
       IO,
       ConnectionIO,
       State[Int, ?],
-      Either[Throwable, ?],
+      EitherT[IO, Throwable, ?],
       A
     ]
 
@@ -66,25 +65,29 @@ class LuciSpec extends Specification with DatabaseResource {
     def createApp(implicit ctx: AppContext) = {
       implicit val han = LogHandler.jdkLogHandler
       val dbOps = for {
-        _ <- sql"""insert into test values (4)""".update.run
-        _ <- sql"""insert into test values ('aaa1')""".update.run
+        _ <- sql"""select true""".query[Boolean].unique
+        // _ <- sql"""insert into test values ('aaa1')""".update.run
       } yield ()
       val ping = freeRoute[IO, Program] {
         case _ @GET -> Root =>
           for {
             config <- free[Program](Kleisli.ask[IO, Config])
-            _ <- free[Program](
-              Par(
-                GetStatus[IO](GET(Uri.uri("https://mockbin.org/delay/10000"))),
-                GetStatus[IO](GET(Uri.uri("https://mockbin.org/delay/10000")))
-              ): Http4sClient[IO, (Status, Status)])
+            // requests1: Http4sClient[IO, (Status, Status)] = Par(
+            //   GetStatus[IO](GET(Uri.uri("https://mockbin.org/delay/10000"))),
+            //   GetStatus[IO](GET(Uri.uri("https://mockbin.org/delay/10000")))
+            // )
+            request2: Http4sClient[IO, String] = Expect[IO, String](
+              GET(Uri.uri("http://localhost:8888")))
+            resp <- free[Program](
+              Attempt(request2): Rescue[Http4sClient[IO, ?],
+                                        Either[Throwable, String]])
+            _ <- free[Program](IO(println(s"Http4s...resp: $resp")))
             _ <- free[Program](State.modify[Int](1 + _))
             _ <- free[Program](State.modify[Int](1 + _))
             _ <- free[Program](
               Writer.tell[Chain[String]](Chain.one("config: " + config.token)))
             resOrError <- free[Program](dbOps.attempt)
-            _ <- free[Program](
-              resOrError.handleError(e => println(s"handle db error $e")))
+            _ <- free[Program](EitherT(IO(resOrError)))
             state <- free[Program](State.get[Int])
             _ <- free[Program](IO(println(s"im IO...state: $state")))
             res <- free[Program](Ok("live"))

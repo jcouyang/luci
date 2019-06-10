@@ -6,30 +6,33 @@ val DoobieVersion = "0.6.0"
 val CatsVersion = "1.6.0"
 val LogbackVersion = "1.2.3"
 
-scalaVersion in ThisBuild := "2.12.8"
-
-lazy val root = (project in file("."))
-  .settings(
+inScope(Scope.GlobalScope)(
+  List(
     organization := "us.oyanglul",
-    name := "luci",
-    version := "0.3.3",
-    // scalacOptions += "-Xlog-implicits",
+    licenses := List("MIT" -> new URL("https://opensource.org/licenses/MIT")),
+    homepage := Some(url("https://github.com/jcouyang/luci")),
+    developers := List(
+      Developer(
+        "jcouyang",
+        "Jichao Ouyang",
+        "oyanglulu@gmail.com",
+        url("https://github.com/jcouyang"))
+    ),
     scmInfo := Some(
       ScmInfo(
         url("https://github.com/jcouyang/luci"),
         "scm:git@github.com:jcouyang/luci.git"
       )
     ),
-    developers := List(
-      Developer(
-        id    = "jcouyang",
-        name  = "Jichao Ouyang",
-        email = "oyanglulu@gmail.com",
-        url   = url("https://oyanglul.us")
-      )
-    ),
-    licenses := List("MIT" -> new URL("https://opensource.org/licenses/MIT")),
-    homepage := Some(url("https://github.com/jcouyang/luci")),
+    pgpPublicRing := file("/home/circleci/repo/.gnupg/pubring.asc"),
+    pgpSecretRing := file("/home/circleci/repo/.gnupg/secring.asc"),
+    releaseEarlyWith := SonatypePublisher,
+    scalaVersion := "2.12.8"
+  )
+)
+
+lazy val root = (project in file("."))
+  .settings(
     libraryDependencies ++= Seq(
       "org.http4s"      %% "http4s-client" % Http4sVersion,
       "org.typelevel"   %% "cats-free"           % CatsVersion,
@@ -47,15 +50,7 @@ lazy val root = (project in file("."))
       "com.github.alexarchambault" %% "scalacheck-shapeless_1.14" % "1.2.0" % Test
     ),
     addCompilerPlugin("org.spire-math" %% "kind-projector"     % "0.9.6"),
-    addCompilerPlugin("com.olegpy"     %% "better-monadic-for" % "0.3.0-M4"),
-    publishTo := {
-      val nexus = "https://oss.sonatype.org/"
-      if (isSnapshot.value)
-        Some("snapshots" at nexus + "content/repositories/snapshots")
-      else
-        Some("releases"  at nexus + "service/local/staging/deploy/maven2")
-    },
-    publishMavenStyle := true
+    addCompilerPlugin("com.olegpy"     %% "better-monadic-for" % "0.3.0-M4")
   )
 
 scalafmtOnCompile in ThisBuild := true
