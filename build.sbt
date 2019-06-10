@@ -10,19 +10,12 @@ inScope(Scope.GlobalScope)(
   List(
     organization := "us.oyanglul",
     licenses := List("MIT" -> new URL("https://opensource.org/licenses/MIT")),
-    homepage := Some(url("https://github.com/jcouyang/luci")),
     developers := List(
       Developer(
         "jcouyang",
         "Jichao Ouyang",
         "oyanglulu@gmail.com",
         url("https://github.com/jcouyang"))
-    ),
-    scmInfo := Some(
-      ScmInfo(
-        url("https://github.com/jcouyang/luci"),
-        "scm:git@github.com:jcouyang/luci.git"
-      )
     ),
     pgpPublicRing := file("/home/circleci/repo/.gnupg/pubring.asc"),
     pgpSecretRing := file("/home/circleci/repo/.gnupg/secring.asc"),
@@ -33,6 +26,14 @@ inScope(Scope.GlobalScope)(
 
 lazy val root = (project in file("."))
   .settings(
+    name := "Luci",
+    homepage := Some(url("https://github.com/jcouyang/luci")),
+    scmInfo := Some(
+      ScmInfo(
+        url("https://github.com/jcouyang/luci"),
+        "scm:git@github.com:jcouyang/luci.git"
+      )
+    ),
     libraryDependencies ++= Seq(
       "org.http4s"      %% "http4s-client" % Http4sVersion,
       "org.typelevel"   %% "cats-free"           % CatsVersion,
