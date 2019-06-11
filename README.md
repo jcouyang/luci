@@ -8,7 +8,7 @@ https://blog.oyanglul.us/scala/3-layer-cake
 
 **Do one thing and do it well** micro [birds](https://github.com/search?q=org%3Ajcouyang+topic%3Abirds&type=Repositories) library series
 
-[![Latest version](https://index.scala-lang.org/jcouyang/luci/latest.svg)](https://index.scala-lang.org/jcouyang/luci)
+![](https://img.shields.io/maven-central/v/us.oyanglul/luci_2.12.svg)
 
 ```
 libraryDependencies += "us.oyanglul" %% "luci" % <version>"
