@@ -18,7 +18,7 @@ import org.http4s._
 import org.specs2.mutable.Specification
 import org.http4s.implicits._
 import doobie.implicits._
-
+import fs2._
 import scala.concurrent.ExecutionContext.Implicits.global
 import com.olegpy.meow.effects._
 import org.http4s.client.dsl.io._
@@ -44,7 +44,7 @@ class LuciSpec extends Specification with DatabaseResource {
     "Given you have define all types for your program".p.tab
 
     case class AppContext(transactor: Transactor[IO], http: Client[IO])
-    type Program[A] = Eff7[
+    type Program[A] = Eff8[
       Rescue[Http4sClient[IO, ?], ?],
       Writer[Chain[String], ?],
       ReaderT[IO, Config, ?],
@@ -52,6 +52,7 @@ class LuciSpec extends Specification with DatabaseResource {
       ConnectionIO,
       State[Int, ?],
       EitherT[IO, Throwable, ?],
+      Fs2[Http4sClient[IO, ?], IO, ?],
       A
     ]
 
@@ -72,16 +73,21 @@ class LuciSpec extends Specification with DatabaseResource {
         case _ @GET -> Root =>
           for {
             config <- free[Program](Kleisli.ask[IO, Config])
-            // requests1: Http4sClient[IO, (Status, Status)] = Par(
-            //   GetStatus[IO](GET(Uri.uri("https://mockbin.org/delay/10000"))),
-            //   GetStatus[IO](GET(Uri.uri("https://mockbin.org/delay/10000")))
-            // )
+            request1: Http4sClient[IO, Status] = GetStatus[IO](
+              GET(Uri.uri("https://mockbin.org/delay/8000")))
+
             request2: Http4sClient[IO, String] = Expect[IO, String](
               GET(Uri.uri("http://localhost:8888")))
             resp <- free[Program](
               Attempt(request2): Rescue[Http4sClient[IO, ?],
                                         Either[Throwable, String]])
-            _ <- free[Program](IO(println(s"Http4s...resp: $resp")))
+            stream <- free[Program](
+              StreamEmits(List(request1, request1)): Fs2[Http4sClient[IO, ?],
+                                                         IO,
+                                                         Stream[IO, Status]])
+            statuses <- free[Program](stream.compile.toList)
+            _ <- free[Program](IO(println(
+              s"------------\n.Http4s...resp: $resp...status: $statuses")))
             _ <- free[Program](State.modify[Int](1 + _))
             _ <- free[Program](State.modify[Int](1 + _))
             _ <- free[Program](
@@ -102,7 +108,14 @@ class LuciSpec extends Specification with DatabaseResource {
         .use {
           case (logEff, config, stateEff) =>
             val args =
-              (ctx.http :: logEff.tellInstance :: config :: Unit :: ctx.transactor :: stateEff.stateInstance :: Unit :: HNil)
+              (ctx.http ::
+                logEff.tellInstance ::
+                config ::
+                Unit ::
+                ctx.transactor ::
+                stateEff.stateInstance ::
+                Unit ::
+                (2 :: ctx.http :: HNil) :: HNil)
                 .map(coflatten)
 
             val binary = compile(program)

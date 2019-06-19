@@ -80,13 +80,14 @@ is using both [meow-mtl](https://github.com/oleg-py/meow-mtl) and ReaderT/Kleisl
 2. init state of stateful effects can then be injected into program via ProgramContext when actually running `Kleisli[IO, ProgramContext, ?]`
 
 ### Some Effects out of the box
+- Id
 - WriterT
 - ReaderT/Kleisli
 - StateT
-- Either
+- EitherT
 - Http4sClient
 - Doobie ConnectionIO
-- Id
+- fs2
 
 It's very similar but just one more step to run the Kleisli
 
