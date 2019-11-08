@@ -40,12 +40,6 @@ trait Http4sClientCompiler[E[_]] {
             case client @ ExpectOr(request, onError) => {
               implicit val d = client.decoder
               Kleisli((env: Env) => env.head.expectOr[A](request)(onError))
-                .adaptError {
-                  case e: Throwable =>
-                    new Http4sClientError(
-                      s"Http4Client ERROR ${e.getMessage} when sending $request",
-                      Some(e))
-                }
             }
             case client: GetStatus[E] =>
               Kleisli((env: Env) => env.head.status(client.req))
