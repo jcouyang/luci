@@ -86,8 +86,9 @@ class LuciSpec extends Specification with DatabaseResource {
                                                          IO,
                                                          Stream[IO, Status]])
             statuses <- free[Program](stream.compile.toList)
-            _ <- free[Program](IO(println(
-              s"------------\n.Http4s...resp: $resp...status: $statuses")))
+            _ <- free[Program](
+              IO(println(
+                s"------------\n.Http4s...resp: $resp...status: $statuses")))
             _ <- free[Program](State.modify[Int](1 + _))
             _ <- free[Program](State.modify[Int](1 + _))
             _ <- free[Program](

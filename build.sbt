@@ -36,6 +36,8 @@ lazy val root = (project in file("."))
     ),
     libraryDependencies ++= Seq(
       "org.http4s"      %% "http4s-client" % Http4sVersion,
+      "org.http4s"      %% "http4s-core" % Http4sVersion,
+      "org.http4s"      %% "http4s-dsl" % Http4sVersion,
       "org.typelevel"   %% "cats-free"           % CatsVersion,
       "org.tpolecat"    %% "doobie-core"         % DoobieVersion,
       "com.olegpy"      %% "meow-mtl"            % "0.2.0",
