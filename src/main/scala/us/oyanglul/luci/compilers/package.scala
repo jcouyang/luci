@@ -8,7 +8,7 @@ package object compilers {
   implicit class NaturalTransformationOps[F[_], G[_]](nat: F ~> G) {
     def liftK[E] = Lambda[F ~> Kleisli[G, E, ?]](fa => Kleisli(_ => nat(fa)))
   }
-  object io extends AllFree[IO] {
+  object io extends All[IO] {
     object stateT extends StateTCompiler[IO]
     object writerT extends WriterTCompiler[IO]
     object readerT extends ReaderTCompiler[IO]
@@ -16,17 +16,5 @@ package object compilers {
     object doobieDB extends DoobieCompiler[IO]
     object id extends IdCompiler[IO]
     object http4sClient extends Http4sClientCompiler[IO]
-  }
-
-  object freeT {
-    object io extends AllFreeT[IO] {
-      object stateT extends StateTCompiler[IO]
-      object writerT extends WriterTCompiler[IO]
-      object readerT extends ReaderTCompiler[IO]
-      object eitherT extends EitherTCompiler[IO]
-      object doobieDB extends DoobieCompiler[IO]
-      object id extends IdCompiler[IO]
-      object http4sClient extends Http4sClientCompiler[IO]
-    }
   }
 }

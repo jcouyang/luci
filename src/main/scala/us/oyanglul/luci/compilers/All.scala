@@ -2,7 +2,8 @@ package us.oyanglul.luci
 package compilers
 
 trait All[E[_]]
-    extends WriterTCompiler[E]
+    extends GenericCompiler[E]
+    with WriterTCompiler[E]
     with Http4sClientCompiler[E]
     with ReaderTCompiler[E]
     with StateTCompiler[E]
@@ -11,7 +12,3 @@ trait All[E[_]]
     with EitherTCompiler[E]
     with RescueCompiler[E]
     with Fs2Compiler[E]
-
-trait AllFreeT[E[_]] extends freetcompilers.GenericCompiler[E] with All[E]
-
-trait AllFree[E[_]] extends GenericCompiler[E] with All[E]

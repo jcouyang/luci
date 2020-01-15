@@ -11,7 +11,7 @@ import cats.effect.IO
 import cats.effect.concurrent.Ref
 import com.olegpy.meow.effects._
 import shapeless.HNil
-import compilers.freeT.io._
+import compilers.io._
 import compilers.coflatten
 
 class LuciFreeTSpec extends Specification with DatabaseResource {
@@ -36,8 +36,6 @@ class LuciFreeTSpec extends Specification with DatabaseResource {
   val stateRuntime = Ref[IO].of(1).unsafeRunSync().stateInstance
   val writerRuntime =
     Ref.of[IO, Chain[String]](Chain.empty).unsafeRunSync().tellInstance
-
-  implicitly[us.oyanglul.luci.compilers.Compiler[Writer[Chain[String], ?], IO]]
 
   val runtime = writerRuntime :: Unit :: stateRuntime :: HNil
   val bin = compile(program)
