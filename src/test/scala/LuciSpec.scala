@@ -44,8 +44,9 @@ class LuciSpec extends Specification with DatabaseResource {
     "Given you have define all types for your program".p.tab
 
     case class AppContext(transactor: Transactor[IO], http: Client[IO])
-    type Program[A] = Eff8[
+    type Program[A] = Eff9[
       Rescue[Http4sClient[IO, ?], ?],
+      Http4sClient[IO, ?],
       Writer[Chain[String], ?],
       ReaderT[IO, Config, ?],
       IO,
@@ -77,7 +78,8 @@ class LuciSpec extends Specification with DatabaseResource {
               GET(Uri.uri("https://mockbin.org/delay/8000")))
 
             request2: Http4sClient[IO, String] = Expect[IO, String](
-              GET(Uri.uri("http://localhost:8888")))
+              GET(Uri.uri("https://httpstat.us/500")))
+            _ <- free[Program](request2)
             resp <- free[Program](
               Attempt(request2): Rescue[Http4sClient[IO, ?],
                                         Either[Throwable, String]])
@@ -109,7 +111,7 @@ class LuciSpec extends Specification with DatabaseResource {
         .use {
           case (logEff, config, stateEff) =>
             val args =
-              (ctx.http ::
+              (ctx.http :: ctx.http ::
                 logEff.tellInstance ::
                 config ::
                 Unit ::
