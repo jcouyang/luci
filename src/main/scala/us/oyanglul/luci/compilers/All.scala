@@ -1,4 +1,5 @@
-package us.oyanglul.luci.compilers
+package us.oyanglul.luci
+package compilers
 
 trait All[E[_]]
     extends GenericCompiler[E]
