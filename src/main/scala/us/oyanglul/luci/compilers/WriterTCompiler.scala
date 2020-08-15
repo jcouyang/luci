@@ -22,7 +22,8 @@ trait WriterTCompiler[E[_]] {
               env.head.tell(l) *>
                 Monad[E].pure(v)
           }
-        }))
+        })
+      )
     }
 
   implicit def writerCompiler[L: Semigroup](implicit ev: Applicative[E]) =
@@ -32,6 +33,7 @@ trait WriterTCompiler[E[_]] {
         ReaderT(env => {
           val (l, v) = writer.run
           env.head.tell(l) *> Applicative[E].pure(v)
-        }))
+        })
+      )
     }
 }

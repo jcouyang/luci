@@ -17,9 +17,11 @@ trait StateTCompiler[E[_]] {
         ReaderT(env =>
           for {
             currentState <- env.head.get
-            n <- state.run(currentState)
-            _ <- env.head.set(n._1)
-          } yield n._2))
+            n            <- state.run(currentState)
+            _            <- env.head.set(n._1)
+          } yield n._2
+        )
+      )
     }
 
   implicit def stateCompiler[L](implicit ev: Monad[E]) =
@@ -31,7 +33,9 @@ trait StateTCompiler[E[_]] {
             currentState <- env.head.get
             (nextState, value) = state.run(currentState).value
             _ <- env.head.set(nextState)
-          } yield value))
+          } yield value
+        )
+      )
     }
 
 }

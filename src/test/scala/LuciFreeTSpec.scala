@@ -6,6 +6,7 @@ import org.specs2.mutable.Specification
 
 import scala.concurrent.ExecutionContext
 import cats.free.FreeT.{liftInject => free}
+import cats.syntax.all._
 import cats.free.FreeT
 import cats.effect.IO
 import cats.effect.concurrent.Ref
@@ -25,12 +26,14 @@ class LuciFreeTSpec extends Specification with DatabaseResource {
 
   type ProgramF[A] = FreeT[Program, IO, A]
 
-  val program = for {
+  val program: ProgramF[Unit] = for {
     _ <- free[IO, Program](State.modify[Int](1 + _))
     _ <- free[IO, Program](State.modify[Int](1 + _))
+    e <- free[IO, Program](IO.raiseError[String](new Exception("should be catch")))
+      .handleError(e => s"catch $e")
     state <- free[IO, Program](State.get[Int])
-    _ <- free[IO, Program](Writer.tell[Chain[String]](Chain.one("lalala")))
-    _ <- free[IO, Program](IO(println(s"im IO...state: $state")))
+    _     <- free[IO, Program](Writer.tell[Chain[String]](Chain.one("lalala")))
+    _     <- free[IO, Program](IO(println(s"im IO...$e...state: $state")))
   } yield ()
 
   val stateRuntime = Ref[IO].of(1).unsafeRunSync().stateInstance
@@ -38,6 +41,9 @@ class LuciFreeTSpec extends Specification with DatabaseResource {
     Ref.of[IO, Chain[String]](Chain.empty).unsafeRunSync().tellInstance
 
   val runtime = writerRuntime :: () :: stateRuntime :: HNil
-  val bin = compile(program)
-  bin.run(runtime.map(coflatten))
+  val bin     = compile(program)
+  "run FreeT" in {
+    bin.run(runtime.map(coflatten)).unsafeRunSync() must_== ()
+  }
+
 }

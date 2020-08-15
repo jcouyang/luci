@@ -12,14 +12,13 @@ trait EitherTCompiler[E[_]] {
       val compile = Lambda[Either[L, ?] ~> Bin](either =>
         Kleisli(_ => {
           M.fromEither(either)
-        }))
+        })
+      )
     }
 
-  implicit def eitherTCompiler[F[_], L](implicit M: MonadError[E, L],
-                                        _compiler: Compiler[F, E]) =
+  implicit def eitherTCompiler[F[_], L](implicit M: MonadError[E, L], _compiler: Compiler[F, E]) =
     new Compiler[EitherT[F, L, ?], E] {
       type Env = _compiler.Env
-      val compile = Lambda[EitherT[F, L, ?] ~> Bin](either =>
-        _compiler.compile(either.value).flatMapF(M.fromEither))
+      val compile = Lambda[EitherT[F, L, ?] ~> Bin](either => _compiler.compile(either.value).flatMapF(M.fromEither))
     }
 }

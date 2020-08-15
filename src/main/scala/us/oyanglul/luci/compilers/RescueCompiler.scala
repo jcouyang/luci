@@ -6,8 +6,7 @@ import cats.{MonadError, ~>}
 import effects._
 
 trait RescueCompiler[E[_]] {
-  implicit def rescueCompiler[F[_], B](implicit M: MonadError[E, Throwable],
-                                       _compiler: Compiler[F, E]) = {
+  implicit def rescueCompiler[F[_], B](implicit M: MonadError[E, Throwable], _compiler: Compiler[F, E]) = {
     new Compiler[Rescue[F, ?], E] {
       type Env = _compiler.Env
       val compile = new (Rescue[F, ?] ~> Bin) {
