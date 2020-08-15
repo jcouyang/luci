@@ -33,7 +33,7 @@ class LuciFreeTSpec extends Specification with DatabaseResource {
 //      .handleError(e => s"catch $e")
     state <- free[IO, Program](State.get[Int])
     _     <- free[IO, Program](Writer.tell[Chain[String]](Chain.one("lalala")))
-    _     <- free[IO, Program](IO(println(s"im IO...$e...state: $state")))
+    _     <- free[IO, Program](IO(println(s"im IO...state: $state")))
   } yield ()
 
   val stateRuntime = Ref[IO].of(1).unsafeRunSync().stateInstance
