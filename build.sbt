@@ -2,7 +2,7 @@ import scala.util.Properties._
 val dotty = "0.25.0"
 val scala213 = "2.13.3"
 val scala212 = "2.12.12"
-lazy val supportedScalaVersions = List(dotty, scala213, scala212)
+lazy val supportedScalaVersions = List( scala213, scala212)
 
 val Http4sVersion = "0.21.7"
 val Specs2Version = "4.10.3"

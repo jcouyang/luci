@@ -1,8 +1,7 @@
 package us.oyanglul.luci
 package resources
 
-import cats.effect.{ContextShift, IO, Resource}
-import doobie.util.ExecutionContexts
+import cats.effect.{Blocker, ContextShift, IO, Resource}
 import doobie.hikari._
 import doobie.util.ExecutionContexts
 
@@ -24,14 +23,14 @@ trait DatabaseResource {
     : Resource[IO, HikariTransactor[IO]] =
     for {
       ce <- ExecutionContexts.fixedThreadPool[IO](THREAD_POOL)
-      te <- ExecutionContexts.cachedThreadPool[IO]
+      te <- Blocker[IO]
       xa <- HikariTransactor.newHikariTransactor[IO](
         "org.postgresql.Driver",
         s"jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}",
         DB_USER,
         DB_PASSWORD,
         ce,
-        te,
+        te
       )
     } yield xa
 }

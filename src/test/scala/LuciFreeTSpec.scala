@@ -37,7 +37,7 @@ class LuciFreeTSpec extends Specification with DatabaseResource {
   val writerRuntime =
     Ref.of[IO, Chain[String]](Chain.empty).unsafeRunSync().tellInstance
 
-  val runtime = writerRuntime :: Unit :: stateRuntime :: HNil
+  val runtime = writerRuntime :: () :: stateRuntime :: HNil
   val bin = compile(program)
   bin.run(runtime.map(coflatten))
 }

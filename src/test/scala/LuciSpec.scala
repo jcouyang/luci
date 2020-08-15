@@ -15,8 +15,8 @@ import org.http4s.client.Client
 import org.http4s.client.blaze.BlazeClientBuilder
 import org.http4s.dsl.io.{Ok, _}
 import org.http4s._
-import org.specs2.mutable.Specification
 import org.http4s.implicits._
+import org.specs2.mutable.Specification
 import doobie.implicits._
 import fs2._
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -112,17 +112,18 @@ class LuciSpec extends Specification with DatabaseResource {
               (ctx.http ::
                 logEff.tellInstance ::
                 config ::
-                Unit ::
+                () ::
                 ctx.transactor ::
                 stateEff.stateInstance ::
-                Unit ::
+                () ::
                 (2 :: ctx.http :: HNil) :: HNil)
                 .map(coflatten)
 
             val binary = compile(program)
             binary.run(args)
 
-        } unsafeRunSync ()
+        }
+        .unsafeRunSync()
     }
     def programResource[S, C](stateRef: IO[Ref[IO, S]],
                               validatedConfig: Either[Throwable, C])
@@ -144,7 +145,7 @@ class LuciSpec extends Specification with DatabaseResource {
     }
 
     "When run Program".p.tab
-    val req = GET(Uri.uri("/")) unsafeRunSync ()
+    val req = GET(Uri.uri("/")).unsafeRunSync()
     databaseResource
       .use { tx =>
         httpClientResource.use { client =>
@@ -155,7 +156,8 @@ class LuciSpec extends Specification with DatabaseResource {
               .unsafeRunSync()
               .status must_== Ok)
         }
-      } unsafeRunSync ()
+      }
+      .unsafeRunSync()
 
   }
 

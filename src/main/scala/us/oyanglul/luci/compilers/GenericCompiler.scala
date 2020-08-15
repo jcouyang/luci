@@ -16,6 +16,9 @@ object coflatten extends CoflattenLowPriority {
   implicit def unitCase: Case.Aux[Unit.type, HNil] = {
     at(_ => HNil)
   }
+  implicit def unitCase2: Case.Aux[(), HNil] = {
+    at(_ => HNil)
+  }
   implicit def nilCase[A <: HNil]: Case.Aux[A, A] = {
     at(a => a)
   }
