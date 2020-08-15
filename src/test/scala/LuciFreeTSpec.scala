@@ -29,8 +29,8 @@ class LuciFreeTSpec extends Specification with DatabaseResource {
   val program: ProgramF[Unit] = for {
     _ <- free[IO, Program](State.modify[Int](1 + _))
     _ <- free[IO, Program](State.modify[Int](1 + _))
-    e <- free[IO, Program](IO.raiseError[String](new Exception("should be catch")))
-      .handleError(e => s"catch $e")
+//    e <- free[IO, Program](IO.raiseError[String](new Exception("should be catch")))
+//      .handleError(e => s"catch $e")
     state <- free[IO, Program](State.get[Int])
     _     <- free[IO, Program](Writer.tell[Chain[String]](Chain.one("lalala")))
     _     <- free[IO, Program](IO(println(s"im IO...$e...state: $state")))
