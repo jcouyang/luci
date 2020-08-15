@@ -3,7 +3,7 @@ import cats.{Applicative, ~>}
 import cats.data.{Reader, Kleisli}
 import shapeless._
 
-trait ReaderTCompiler[E[_]] {
+trait ReaderCompiler[E[_]] {
   implicit def readerTCompiler[C] =
     new Compiler[Kleisli[E, C, ?], E] {
       type Env = C :: HNil

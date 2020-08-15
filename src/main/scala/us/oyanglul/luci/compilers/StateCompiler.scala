@@ -9,7 +9,7 @@ import cats.~>
 import cats.data._
 import shapeless._
 
-trait StateTCompiler[E[_]] {
+trait StateCompiler[E[_]] {
   implicit def stateTCompiler[L](implicit ev: Monad[E]) =
     new Compiler[StateT[E, L, ?], E] {
       type Env = MonadState[E, L] :: HNil

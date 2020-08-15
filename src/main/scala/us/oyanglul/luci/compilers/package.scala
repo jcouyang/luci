@@ -9,11 +9,11 @@ package object compilers {
     def liftK[E] = Lambda[F ~> Kleisli[G, E, ?]](fa => Kleisli(_ => nat(fa)))
   }
   object io extends All[IO] {
-    object stateT       extends StateTCompiler[IO]
-    object writerT      extends WriterTCompiler[IO]
-    object readerT      extends ReaderTCompiler[IO]
-    object eitherT      extends EitherTCompiler[IO]
-    object doobieDB     extends DoobieCompiler[IO]
+    object state        extends StateCompiler[IO]
+    object writer       extends WriterCompiler[IO]
+    object reader       extends ReaderCompiler[IO]
+    object either       extends EitherCompiler[IO]
+    object doobie       extends DoobieCompiler[IO]
     object id           extends IdCompiler[IO]
     object http4sClient extends Http4sClientCompiler[IO]
   }

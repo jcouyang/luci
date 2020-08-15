@@ -5,7 +5,7 @@ import cats.{MonadError, ~>}
 import cats.data._
 import shapeless._
 
-trait EitherTCompiler[E[_]] {
+trait EitherCompiler[E[_]] {
   implicit def eitherCompiler[L](implicit M: MonadError[E, L]) =
     new Compiler[Either[L, ?], E] {
       type Env = HNil

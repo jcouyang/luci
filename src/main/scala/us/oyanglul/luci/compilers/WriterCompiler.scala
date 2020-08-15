@@ -11,7 +11,7 @@ import cats.data._
 import cats.syntax.apply._
 import shapeless._
 
-trait WriterTCompiler[E[_]] {
+trait WriterCompiler[E[_]] {
   implicit def writerTCompiler[L: Semigroup](implicit ev: Monad[E]) =
     new Compiler[WriterT[E, L, ?], E] {
       type Env = FunctorTell[E, L] :: HNil
