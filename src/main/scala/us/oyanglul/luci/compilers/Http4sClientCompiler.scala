@@ -15,6 +15,7 @@ case class Http4sClientError(message: String, cause: Option[Throwable] = None) e
   def toHttpResponse[F[_]](httpVersion: HttpVersion): Response[F] =
     Response(ServiceUnavailable, httpVersion)
 }
+
 trait Http4sClientCompiler[E[_]] {
   implicit def http4sClientCompiler[G[_]](implicit M: MonadError[E, Throwable], P: Parallel[E]) =
     new Compiler[Http4sClient[E, ?], E] {
