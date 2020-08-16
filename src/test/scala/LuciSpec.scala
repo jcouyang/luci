@@ -27,7 +27,6 @@ import scala.concurrent.ExecutionContext
 import compilers.io._
 import Free.{liftInject => free}
 import shapeless._
-import compilers.coflatten
 
 class LuciSpec extends Specification with DatabaseResource {
   implicit val cs = IO.contextShift(ExecutionContext.global)
@@ -67,14 +66,14 @@ class LuciSpec extends Specification with DatabaseResource {
         _ <- sql"""select true""".query[Boolean].unique
         // _ <- sql"""insert into test values ('aaa1')""".update.run
       } yield ()
+      val request1: Http4sClient[IO, Status] = GetStatus[IO](GET(Uri.uri("https://mockbin.org/delay/8000")))
+
+      val request2: Http4sClient[IO, String] = Expect[IO, String](GET(Uri.uri("http://localhost:8888")))
       val ping = freeRoute[IO, Program] {
         case _ @GET -> Root =>
           for {
             config <- free[Program](Kleisli.ask[IO, Config])
-            request1: Http4sClient[IO, Status] = GetStatus[IO](GET(Uri.uri("https://mockbin.org/delay/8000")))
-
-            request2: Http4sClient[IO, String] = Expect[IO, String](GET(Uri.uri("http://localhost:8888")))
-            resp <- free[Program](Attempt(request2): Rescue[Http4sClient[IO, ?], Either[Throwable, String]])
+            resp   <- free[Program](Attempt(request2): Rescue[Http4sClient[IO, ?], Either[Throwable, String]])
             stream <-
               free[Program](StreamEmits(List(request1, request1)): Fs2[Http4sClient[IO, ?], IO, Stream[IO, Status]])
             statuses   <- free[Program](stream.compile.toList)
@@ -96,17 +95,16 @@ class LuciSpec extends Specification with DatabaseResource {
       programResource(Ref[IO].of(1), Config("im config").asRight[Throwable])
         .use {
           case (logEff, config, stateEff) =>
-            val args =
-              (ctx.http ::
+            val args = (
+              ctx.http ::
                 logEff.tellInstance ::
                 config ::
                 () ::
                 ctx.transactor ::
                 stateEff.stateInstance ::
                 () ::
-                (2 :: ctx.http :: HNil) :: HNil)
-                .map(coflatten)
-
+                (2, ctx.http) :: HNil
+            )
             val binary = compile(program)
             binary.run(args)
 

@@ -1,20 +1,20 @@
 package us.oyanglul.luci.compilers
-import cats.{Applicative, ~>}
-import cats.data.{Reader, Kleisli}
-import shapeless._
+import cats.arrow.FunctionK
+import cats.{Applicative, Id, ~>}
+import cats.data.{Kleisli, Reader}
 
 trait ReaderCompiler[E[_]] {
   implicit def readerTCompiler[C] =
-    new Compiler[Kleisli[E, C, ?], E] {
-      type Env = C :: HNil
+    new Compiler[Kleisli[E, C, *], E] {
+      type Env = C
       val compile =
-        Lambda[Kleisli[E, C, ?] ~> Bin](_.local(_.head))
+        FunctionK.id[Kleisli[E, C, *]]
     }
 
   implicit def readerCompiler[C](implicit F: Applicative[E]) =
-    new Compiler[Reader[C, ?], E] {
-      type Env = C :: HNil
+    new Compiler[Reader[C, *], E] {
+      type Env = C
       val compile =
-        Lambda[Reader[C, ?] ~> Bin](_.local((e: Env) => e.head).mapK(Lambda[Id ~> E](F.pure(_))))
+        Lambda[Reader[C, *] ~> Bin](_.mapK(Lambda[Id ~> E](F.pure(_))))
     }
 }

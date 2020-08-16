@@ -2,13 +2,12 @@ package us.oyanglul.luci.compilers
 
 import cats.data._
 import cats.{MonadError, ~>}
-import shapeless._
 
 class OptionCompilerValueEmpty extends Throwable
 trait OptionCompiler[E[_]] {
   implicit def optionCompiler(implicit M: MonadError[E, Throwable]) =
     new Compiler[Option, E] {
-      type Env = HNil
+      type Env = ()
       val compile = Lambda[Option ~> Bin](option =>
         Kleisli(_ => {
           M.fromOption(option, new OptionCompilerValueEmpty)

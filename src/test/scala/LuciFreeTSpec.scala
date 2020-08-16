@@ -6,14 +6,12 @@ import org.specs2.mutable.Specification
 
 import scala.concurrent.ExecutionContext
 import cats.free.FreeT.{liftInject => free}
-import cats.syntax.all._
 import cats.free.FreeT
 import cats.effect.IO
 import cats.effect.concurrent.Ref
 import com.olegpy.meow.effects._
 import shapeless.HNil
 import compilers.io._
-import compilers.coflatten
 
 class LuciFreeTSpec extends Specification with DatabaseResource {
   implicit val cs = IO.contextShift(ExecutionContext.global)
@@ -43,7 +41,7 @@ class LuciFreeTSpec extends Specification with DatabaseResource {
   val runtime = writerRuntime :: () :: stateRuntime :: HNil
   val bin     = compile(program)
   "run FreeT" in {
-    bin.run(runtime.map(coflatten)).unsafeRunSync() must_== ()
+    bin.run(runtime).unsafeRunSync() must_== ()
   }
 
 }

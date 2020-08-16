@@ -4,17 +4,16 @@ package compilers
 import cats.data.Kleisli
 import cats.effect.Bracket
 import cats.~>
-import doobie.util.transactor.Transactor
 import doobie.free.connection.ConnectionIO
-import shapeless._
+import doobie.util.transactor.Transactor
 
 trait DoobieCompiler[E[_]] {
   implicit def doobieInterp(implicit b: Bracket[E, Throwable]) =
     new Compiler[ConnectionIO, E] {
-      type Env = Transactor[E] :: HNil
+      type Env = Transactor[E]
       val compile = new (ConnectionIO ~> Bin) {
         def apply[A](dbops: ConnectionIO[A]) =
-          Kleisli { _.head.trans.apply(dbops) }
+          Kleisli { _.trans.apply(dbops) }
       }
     }
 }

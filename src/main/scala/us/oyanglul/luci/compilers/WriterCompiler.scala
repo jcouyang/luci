@@ -9,17 +9,16 @@ import cats.mtl.FunctorTell
 import cats.~>
 import cats.data._
 import cats.syntax.apply._
-import shapeless._
 
 trait WriterCompiler[E[_]] {
   implicit def writerTCompiler[L: Semigroup](implicit ev: Monad[E]) =
     new Compiler[WriterT[E, L, ?], E] {
-      type Env = FunctorTell[E, L] :: HNil
+      type Env = FunctorTell[E, L]
       val compile = Lambda[WriterT[E, L, ?] ~> Bin](writer =>
         ReaderT(env => {
           writer.run.flatMap {
             case (l, v) =>
-              env.head.tell(l) *>
+              env.tell(l) *>
                 Monad[E].pure(v)
           }
         })
@@ -28,11 +27,11 @@ trait WriterCompiler[E[_]] {
 
   implicit def writerCompiler[L: Semigroup](implicit ev: Applicative[E]) =
     new Compiler[Writer[L, ?], E] {
-      type Env = FunctorTell[E, L] :: HNil
+      type Env = FunctorTell[E, L]
       val compile = Lambda[Writer[L, ?] ~> Bin](writer =>
         ReaderT(env => {
           val (l, v) = writer.run
-          env.head.tell(l) *> Applicative[E].pure(v)
+          env.tell(l) *> Applicative[E].pure(v)
         })
       )
     }

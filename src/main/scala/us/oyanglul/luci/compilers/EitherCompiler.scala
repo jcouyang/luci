@@ -1,14 +1,13 @@
 package us.oyanglul.luci
 package compilers
 
-import cats.{MonadError, ~>}
 import cats.data._
-import shapeless._
+import cats.{MonadError, ~>}
 
 trait EitherCompiler[E[_]] {
   implicit def eitherCompiler[L](implicit M: MonadError[E, L]) =
     new Compiler[Either[L, ?], E] {
-      type Env = HNil
+      type Env = ()
       val compile = Lambda[Either[L, ?] ~> Bin](either =>
         Kleisli(_ => {
           M.fromEither(either)
