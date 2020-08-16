@@ -1,7 +1,7 @@
 version: 2.1
 description: Scala sbt pipeline
 orbs:
-  sbt: jcouyang/sbt@dev:0.2.0
+  sbt: jcouyang/sbt@0.3.0
 executors:
   scala-db:
     docker:
