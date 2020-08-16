@@ -82,10 +82,10 @@ class LuciSpec extends Specification with DatabaseResource {
             _          <- free[Program](State.modify[Int](1 + _))
             _          <- free[Program](State.modify[Int](1 + _))
             _          <- free[Program](Writer.tell[Chain[String]](Chain.one("config: " + config.token)))
-            resOrError <- free[Program](dbOps.attempt)
-            _          <- free[Program](EitherT(IO(resOrError)))
+            resOrError <- List(free[Program](dbOps.attempt), free[Program](dbOps.attempt)).sequence
+            _          <- free[Program](EitherT(IO(resOrError.head)))
             state      <- free[Program](State.get[Int])
-            _          <- free[Program](IO(println(s"im IO...state: $state")))
+            _          <- free[Program](IO(println(s"im IO...state: $state, db ops: $resOrError")))
             res        <- free[Program](Ok("live"))
           } yield res
       }

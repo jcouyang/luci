@@ -28,7 +28,6 @@ trait Fs2Compiler[E[_]] {
           }
       }
     }
-
   }
 
 }
