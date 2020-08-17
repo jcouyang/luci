@@ -41,15 +41,16 @@ class LuciSpec extends Specification with DatabaseResource {
     "Given you have define all types for your program".p.tab
 
     case class AppContext(transactor: Transactor[IO], http: Client[IO])
+    type Http4sReader[A] = Kleisli[IO, Client[IO], A]
     type Program[A] = Eff8[
-      Rescue[Http4sClient[IO, ?], ?],
+      Rescue[Http4sReader, ?],
       Writer[Chain[String], ?],
       ReaderT[IO, Config, ?],
       IO,
       ConnectionIO,
       State[Int, ?],
       EitherT[IO, Throwable, ?],
-      Fs2[Http4sClient[IO, ?], IO, ?],
+      Fs2[Http4sReader, IO, ?],
       A
     ]
 
@@ -66,16 +67,15 @@ class LuciSpec extends Specification with DatabaseResource {
         _ <- sql"""select true""".query[Boolean].unique
         // _ <- sql"""insert into test values ('aaa1')""".update.run
       } yield ()
-      val request1: Http4sClient[IO, Status] = GetStatus[IO](GET(Uri.uri("https://mockbin.org/delay/8000")))
+      val request1: Http4sReader[Status] = Kleisli(_.statusFromUri(uri"https://mockbin.org/delay/8000"))
 
-      val request2: Http4sClient[IO, String] = Expect[IO, String](GET(Uri.uri("http://localhost:8888")))
+      val request2: Http4sReader[String] = Kleisli(_.expect[String](uri"http://localhost:8888"))
       val ping = freeRoute[IO, Program] {
         case _ @GET -> Root =>
           for {
-            config <- free[Program](Kleisli.ask[IO, Config])
-            resp   <- free[Program](Attempt(request2): Rescue[Http4sClient[IO, ?], Either[Throwable, String]])
-            stream <-
-              free[Program](StreamEmits(List(request1, request1)): Fs2[Http4sClient[IO, ?], IO, Stream[IO, Status]])
+            config     <- free[Program](Kleisli.ask[IO, Config])
+            resp       <- free[Program](Attempt(request2): Rescue[Http4sReader, Either[Throwable, String]])
+            stream     <- free[Program](StreamEmits(List(request1, request1)): Fs2[Http4sReader, IO, Stream[IO, Status]])
             statuses   <- free[Program](stream.compile.toList)
             _          <- free[Program](IO(println(s"------------\n.Http4s...resp: $resp...status: $statuses")))
             _          <- free[Program](State.modify[Int](1 + _))
