@@ -40,9 +40,6 @@ lazy val root = (project in file("."))
       )
     ),
     libraryDependencies ++= Seq(
-      "org.http4s"      %% "http4s-client" % Http4sVersion,
-      "org.http4s"      %% "http4s-core" % Http4sVersion,
-      "org.http4s"      %% "http4s-dsl" % Http4sVersion,
       "org.typelevel"   %% "cats-free"           % CatsVersion,
       "org.tpolecat"    %% "doobie-core"         % DoobieVersion,
       "com.olegpy"      %% "meow-mtl"            % "0.3.0-M1",
@@ -55,7 +52,10 @@ lazy val root = (project in file("."))
       "org.scalamock"   %% "scalamock" % "5.0.0" % Test,
       "org.http4s"      %% "http4s-blaze-client" % Http4sVersion % Test,
       "ch.qos.logback"  %  "logback-classic"     % LogbackVersion % Test,
-      "com.github.alexarchambault" %% "scalacheck-shapeless_1.14" % "1.2.3" % Test
+      "com.github.alexarchambault" %% "scalacheck-shapeless_1.14" % "1.2.3" % Test,
+      "org.http4s"      %% "http4s-client" % Http4sVersion % Test,
+      "org.http4s"      %% "http4s-core" % Http4sVersion % Test,
+      "org.http4s"      %% "http4s-dsl" % Http4sVersion % Test,
     ),
     addCompilerPlugin("org.typelevel" %% "kind-projector"     % "0.10.3")
   )
