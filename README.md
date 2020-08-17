@@ -8,7 +8,7 @@ https://blog.oyanglul.us/scala/3-layer-cake
 
 **Do one thing and do it well** micro [birds](https://github.com/search?q=org%3Ajcouyang+topic%3Abirds&type=Repositories) library series
 
-![](https://img.shields.io/maven-central/v/us.oyanglul/luci_2.12.svg)
+![](https://index.scala-lang.org/jcouyang/luci/latest.svg?v=1)
 
 ```
 libraryDependencies += "us.oyanglul" %% "luci" % <version>"
@@ -157,15 +157,15 @@ val args = (httpclient ::
     transactor ::
     stateRef.stateInstance ::
     Unit ::
-    HNil).map(coflatten)
+    HNil)
 
 binary.run(args)
 ```
 
 for stateful `WriterT` and `StateT` here, we can get `FunctorTell` and `MonadState` instances from `Ref[IO, ?]`
-and inject them into program via `ProgramContext`
+and inject them into the program via `ProgramContext`
 
-each one corespond to program's effect's context
+each one corresponds to program's effect's context
 
 1. binary for `Http4sClient[IO, ?]` needs `Client[IO]` to run
 2. binary for `WriterT[IO, Chain[String], ?]` needs `FuntorTell[IO, Chain[String]]`, presented by meow-mtl `.tellInstance`
@@ -177,12 +177,12 @@ each one corespond to program's effect's context
 
 ## Create Your Own Effect
 
-creating an new compilable effect is pretty simple in 2 steps
+creating a new compilable effect is pretty simple in 2 steps
 
 ### Step 1: Create Data Type
-This is nothing different from creating a effect data type for Free Monad
+This is nothing different from creating an effect data type for Free Monad
 
-For instance we need a `s3 putObject` Effect
+For instance, we need a `s3 putObject` Effect
 
 ```scala
 
@@ -196,33 +196,27 @@ case class PutObject(bucketName: String, fileName: String, content: String)
 
 ### Step 2: Create Compiler
 
-To create a compiler for new data type s3, we'll need to create instance for type class Compiler
+To create a compiler for new data type s3, we'll need to create an instance for type class Compiler
 ```scala
 trait Compiler[F[_], E[_]] {
-  type Env <: HList
+  type Env
   val compile: F ~> Kleisli[E, Env, ?]
 }
 ```
 
-We need a type of `Env` where the program needs to be compile. e.g. S3 need a AWS S3 Client
+We need a type of `Env` where the program needs to be compile. e.g. S3 need an AWS S3 Client
 
 ```scala
 trait S3Compiler[E[_]] {
   implicit def s3Compiler(implicit F: Applicative[E]) = new Compiler[S3, E] {
-    type Env = AmazonS3 :: HNil
+    type Env = AmazonS3
     val compile = Lambda[S3 ~> Kleisli[E, Env, ?]] (_ match {
       case PutObject(bucketName, fileName, content) =>
-        Kleisli(env => F.pure(env.head.putObject(bucketName, fileName, content)))
+        Kleisli(env => F.pure(env.putObject(bucketName, fileName, content)))
     })
   }
 }
 ```
-
-There were few point to be noted here:
-
-1. be mindful that the `Env` needs to be a shapeless `HList`, thus, here it's `AmazonS3 :: HNil` not `AmazonS3`
-2. the compiler is generic on `E[_]`, but with restriction that E has to have instance for `Applicative` so we can use `.pure`
-3. Kleisli will get env of type `AmazonS3 :: HNil`, it's just like list but more acurate on it's content, you can get `head` safely since we know that there must be an item of type `AmazonS3` in head.
 
 ### Step 3 Use the effect
 
